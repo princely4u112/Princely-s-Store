@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Princely's Tech – Everyday Gadgets & Mobile Accessories in Nigeria</title>
+    <meta name="description" content="Your Trusted Online Store for Everyday Gadgets and Mobile Accessories in Nigeria. Power banks, fast chargers, earbuds, cables, phone accessories with nationwide 5-7 day delivery." />
+    
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Princely's Tech – Everyday Gadgets & Mobile Accessories in Nigeria" />
+    <meta property="og:description" content="Your Trusted Online Store for Everyday Gadgets and Mobile Accessories in Nigeria. Power banks, fast chargers, earbuds, cables, phone accessories with nationwide 5-7 day delivery." />
+    <meta property="og:site_name" content="Princely's Tech" />
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Princely's Tech – Everyday Gadgets & Mobile Accessories in Nigeria" />
+    <meta name="twitter:description" content="Your Trusted Online Store for Everyday Gadgets and Mobile Accessories in Nigeria. Power banks, fast chargers, earbuds, cables, phone accessories with nationwide 5-7 day delivery." />
+
+    <!-- Google Fonts: Plus Jakarta Sans (Headings) and Inter (Body) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+
+    <!-- Favicon SVG -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231E2A44'/><path d='M9 22V10h6.5a4.5 4.5 0 0 1 0 9H13v3H9zm4-6h2.5a1.5 1.5 0 0 0 0-3H13v3z' fill='%23E8553A'/><circle cx='23' cy='21' r='2' fill='%23E8553A'/></svg>" />
+
+    <!-- Schema.org Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "ElectronicsStore",
+      "name": "Princely's Tech",
+      "description": "Your Trusted Online Store for Everyday Gadgets and Mobile Accessories in Nigeria.",
+      "telephone": "+2348124491537",
+      "email": "Princely4u112@gmail.com",
+      "priceRange": "₦₦",
+      "currenciesAccepted": "NGN",
+      "paymentAccepted": "Paystack, Debit Card, Bank Transfer",
+      "address": {
+        "@type": "PostalAddress",
+        "addressCountry": "NG"
+      }
+    }
+    </script>
+
+    <!-- Suppress Vite WebSocket/HMR reconnection errors per environment constraints -->
+    <script>
+      (function() {
+        var isWsError = function(msg) {
+          if (!msg) return false;
+          var s = String(msg);
+          return s.indexOf('WebSocket') !== -1 ||
+                 s.indexOf('@vite/client') !== -1 ||
+                 s.indexOf('createWebSocketModuleRunnerTransport') !== -1 ||
+                 s.indexOf('ModuleRunner') !== -1;
+        };
+
+        window.addEventListener('error', function(e) {
+          if (isWsError(e.message) || isWsError(e.filename) || (e.error && isWsError(e.error.message))) {
+            e.stopImmediatePropagation();
+            e.preventDefault();
+          }
+        }, true);
+
+        window.addEventListener('unhandledrejection', function(e) {
+          if (isWsError(e.reason)) {
+            e.stopImmediatePropagation();
+            e.preventDefault();
+          }
+        }, true);
+      })();
+    </script>
+  </head>
+  <body class="bg-[#F8FAFC] text-[#1E2A44] font-sans antialiased selection:bg-[#E8553A]/20 selection:text-[#1E2A44]">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

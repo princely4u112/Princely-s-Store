@@ -1,0 +1,478 @@
+import { Category, Product, SiteContent, StoreSettings } from '../types';
+
+// Real high-fidelity local image imports
+import heroGadgetsImg from '../assets/images/hero_gadgets_collection_1791812736524.jpg';
+import powerbankImg from '../assets/images/product_powerbank_20000mah_1791812747581.jpg';
+import earbudsImg from '../assets/images/product_wireless_earbuds_1791812757463.jpg';
+import chargerImg from '../assets/images/product_gan_fast_charger_1791812769053.jpg';
+
+export { heroGadgetsImg, powerbankImg, earbudsImg, chargerImg };
+
+export const NIGERIAN_STATES = [
+  'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa', 'Benue', 'Borno',
+  'Cross River', 'Delta', 'Ebonyi', 'Edo', 'Ekiti', 'Enugu', 'FCT - Abuja', 'Gombe',
+  'Imo', 'Jigawa', 'Kaduna', 'Kano', 'Katsina', 'Kebbi', 'Kogi', 'Kwara',
+  'Lagos', 'Nasarawa', 'Niger', 'Ogun', 'Ondo', 'Osun', 'Oyo', 'Plateau',
+  'Rivers', 'Sokoto', 'Taraba', 'Yobe', 'Zamfara'
+];
+
+export const INITIAL_CATEGORIES: Category[] = [
+  {
+    id: 'cat-power-banks',
+    name: 'Power Banks',
+    slug: 'power-banks',
+    description: 'High capacity, fast-charging portable power banks designed to keep your phone running through heavy days.',
+    displayOrder: 1,
+  },
+  {
+    id: 'cat-chargers-adapters',
+    name: 'Chargers & Adapters',
+    slug: 'chargers-adapters',
+    description: 'GaN fast wall chargers, PD adapters, and dual-port heads that charge your phone safely without overheating.',
+    displayOrder: 2,
+  },
+  {
+    id: 'cat-usb-cables',
+    name: 'USB Cables',
+    slug: 'usb-cables',
+    description: 'Durable nylon-braided Type-C, Lightning, and multi-port charging cables built to resist wear and tear.',
+    displayOrder: 3,
+  },
+  {
+    id: 'cat-phones',
+    name: 'Phones',
+    slug: 'phones',
+    description: 'Brand new, sealed smartphones with official warranty from Samsung, Apple, Tecno, Itel, and Oppo.',
+    displayOrder: 4,
+  },
+  {
+    id: 'cat-cases-screen-guards',
+    name: 'Cases & Screen Guards',
+    slug: 'cases-screen-guards',
+    description: 'Drop-tested shockproof pouches, matte cases, and edge-to-edge 9H tempered glass screen protectors.',
+    displayOrder: 5,
+  },
+  {
+    id: 'cat-audio-earphones',
+    name: 'Audio & Earphones',
+    slug: 'audio-earphones',
+    description: 'High-definition wireless earbuds, active noise-cancelling headphones, and punchy bass handsfree sets.',
+    displayOrder: 6,
+  },
+  {
+    id: 'cat-stands-holders',
+    name: 'Stands & Holders',
+    slug: 'stands-holders',
+    description: 'Sturdy aluminum desktop phone stands, 360° car dashboard air-vent mounts, and magnetic desk docks.',
+    displayOrder: 7,
+  },
+  {
+    id: 'cat-tablet-accessories',
+    name: 'Tablet & Mobile Accessories',
+    slug: 'tablet-accessories',
+    description: 'Universal OTG adapters, capacitive stylus pens, selfie ring lights, and everyday mobile convenience tools.',
+    displayOrder: 8,
+  },
+];
+
+export const INITIAL_PRODUCTS: Product[] = [
+  {
+    id: 'prod-anker-powercore-20k',
+    name: 'Anker PowerCore 20,000mAh PD Fast Charge Power Bank',
+    slug: 'anker-powercore-20000mah-pd-fast-charge-power-bank',
+    categoryId: 'cat-power-banks',
+    categoryName: 'Power Banks',
+    sku: 'PT-PB-001',
+    price: 28500,
+    compareAtPrice: 34000,
+    stock: 24,
+    description: 'Engineered for heavy smartphone users and remote workers in Nigeria. Features high-density Lithium-Polymer cells, 22.5W Power Delivery, and smart temperature regulation. Powers an iPhone up to 4.5 times or a Galaxy device up to 4 times. Includes a precision digital LED percentage readout.',
+    specifications: {
+      'Battery Capacity': '20,000mAh (74Wh)',
+      'Fast Charging': 'Power Delivery 3.0 & Quick Charge 3.0 (22.5W Max)',
+      'Input Ports': '1x USB Type-C (18W)',
+      'Output Ports': '1x USB-C PD, 2x USB-A QC',
+      'Display': 'Digital LED battery % readout',
+      'Protection': 'Over-voltage, short-circuit, and high-temp safety cutoff',
+      'Warranty': '6 Months Princely\'s Tech Warranty'
+    },
+    isFeatured: true,
+    isPublished: true,
+    rating: 4.9,
+    reviewsCount: 38,
+    images: [
+      { id: 'img-1', url: powerbankImg, altText: 'Anker PowerCore 20,000mAh Fast Charge Power Bank', isPrimary: true },
+      { id: 'img-1b', url: heroGadgetsImg, altText: 'Power Bank with Cables on Desk', isPrimary: false }
+    ],
+    variants: [
+      { id: 'var-1a', name: 'Color', optionValue: 'Matte Obsidian Black', stock: 16, sku: 'PT-PB-001-BLK' },
+      { id: 'var-1b', name: 'Color', optionValue: 'Glacier White', stock: 8, sku: 'PT-PB-001-WHT' }
+    ],
+    createdAt: '2026-03-01T10:00:00Z',
+  },
+  {
+    id: 'prod-gan-65w-wall-charger',
+    name: '65W GaN Dual USB-C Fast Wall Charger Adapter',
+    slug: '65w-gan-dual-usbc-fast-wall-charger-adapter',
+    categoryId: 'cat-chargers-adapters',
+    categoryName: 'Chargers & Adapters',
+    sku: 'PT-CH-002',
+    price: 18500,
+    compareAtPrice: 22000,
+    stock: 32,
+    description: 'Compact Gallium Nitride (GaN) technology provides ultra-fast charging without dangerous heat buildup. Powers iPhones, Samsung flagships, iPads, and even USB-C laptops at full speed. Fitted with a heavy-duty 3-pin UK plug designed for standard Nigerian wall sockets.',
+    specifications: {
+      'Max Output': '65W Total Power Delivery',
+      'Technology': 'Gallium Nitride (GaN III) Semipro',
+      'Ports': '2x USB-C (PD 3.0), 1x USB-A (QC 3.0)',
+      'Plug Type': 'UK 3-Pin (Nigerian standard compliant)',
+      'Fast Charging Protocols': 'PD3.0, PPS, QC4+, Super Fast Charge 2.0',
+      'Warranty': '6 Months Replacement Warranty'
+    },
+    isFeatured: true,
+    isPublished: true,
+    rating: 4.8,
+    reviewsCount: 42,
+    images: [
+      { id: 'img-2', url: chargerImg, altText: '65W GaN Dual USB-C Fast Wall Charger Adapter', isPrimary: true },
+    ],
+    variants: [
+      { id: 'var-2a', name: 'Color', optionValue: 'Matte Midnight Black', stock: 20, sku: 'PT-CH-002-BLK' },
+      { id: 'var-2b', name: 'Color', optionValue: 'Pure Frost White', stock: 12, sku: 'PT-CH-002-WHT' }
+    ],
+    createdAt: '2026-03-02T11:00:00Z',
+  },
+  {
+    id: 'prod-sonic-pro-wireless-earbuds',
+    name: 'Sonic Pro Active Noise-Cancelling Wireless Earbuds',
+    slug: 'sonic-pro-active-noise-cancelling-wireless-earbuds',
+    categoryId: 'cat-audio-earphones',
+    categoryName: 'Audio & Earphones',
+    sku: 'PT-AU-003',
+    price: 24000,
+    compareAtPrice: 30000,
+    stock: 19,
+    description: 'Experience deep, immersive bass and crystal-clear voice calls. Featuring -35dB Hybrid Active Noise Cancellation, Bluetooth 5.4 stable low-latency connection, and 36-hour total battery life with the pocket charging case.',
+    specifications: {
+      'Bluetooth Version': '5.4 with AAC & SBC HD codecs',
+      'Battery Life': '8 hours per charge, 36 hours with case',
+      'Noise Cancellation': 'Hybrid Active Noise Cancellation (-35dB)',
+      'Water Resistance': 'IPX5 sweat and splash resistance',
+      'Microphone': 'Quad ENC mics with wind-reduction mesh',
+      'Charging Time': '10-minute quick charge yields 2 hours playtime'
+    },
+    isFeatured: true,
+    isPublished: true,
+    rating: 4.9,
+    reviewsCount: 29,
+    images: [
+      { id: 'img-3', url: earbudsImg, altText: 'Sonic Pro Active Noise-Cancelling Wireless Earbuds', isPrimary: true },
+    ],
+    variants: [
+      { id: 'var-3a', name: 'Color', optionValue: 'Space Graphite', stock: 11, sku: 'PT-AU-003-BLK' },
+      { id: 'var-3b', name: 'Color', optionValue: 'Pearl White', stock: 8, sku: 'PT-AU-003-WHT' }
+    ],
+    createdAt: '2026-03-03T12:00:00Z',
+  },
+  {
+    id: 'prod-oraimo-traveler-20k',
+    name: 'Oraimo Traveler 20,000mAh Ultra-Slim Power Bank',
+    slug: 'oraimo-traveler-20000mah-ultra-slim-power-bank',
+    categoryId: 'cat-power-banks',
+    categoryName: 'Power Banks',
+    sku: 'PT-PB-004',
+    price: 22000,
+    compareAtPrice: 26000,
+    stock: 15,
+    description: 'Genuine Oraimo Traveler series with AniFast high-speed intelligent charging. Slim textured anti-slip body that fits easily into bags or laptop sleeves. Dual output allows charging two smartphones at the same time.',
+    specifications: {
+      'Capacity': '20,000mAh High-Density Battery',
+      'Output': '5V/2.4A Dual Fast Ports',
+      'Input': 'Type-C and Micro-USB Dual Input',
+      'Dimensions': '143 x 68 x 28 mm',
+      'Finish': '3D Anti-scratch Laser Texture'
+    },
+    isFeatured: false,
+    isPublished: true,
+    rating: 4.7,
+    reviewsCount: 21,
+    images: [
+      { id: 'img-4', url: powerbankImg, altText: 'Oraimo Traveler Power Bank', isPrimary: true },
+    ],
+    variants: [
+      { id: 'var-4a', name: 'Color', optionValue: 'Classic Black', stock: 15, sku: 'PT-PB-004-BLK' }
+    ],
+    createdAt: '2026-03-04T09:00:00Z',
+  },
+  {
+    id: 'prod-braided-100w-usbc-cable',
+    name: 'Heavy-Duty 100W Braided USB-C to USB-C Fast Cable',
+    slug: 'heavy-duty-100w-braided-usbc-to-usbc-fast-cable',
+    categoryId: 'cat-usb-cables',
+    categoryName: 'USB Cables',
+    sku: 'PT-CB-005',
+    price: 6500,
+    compareAtPrice: 8500,
+    stock: 55,
+    description: 'Tough ballistic nylon braiding with reinforced zinc alloy connector necks tested to withstand 25,000+ bends. Built-in E-Marker smart chip supports up to 100W (20V/5A) fast charging for modern smartphones, tablets, and MacBooks.',
+    specifications: {
+      'Max Power': '100W (20V / 5A) Power Delivery',
+      'Data Transfer Rate': '480 Mbps high speed sync',
+      'Material': 'Double-braided military nylon & zinc alloy',
+      'Bend Lifespan': '25,000+ tested bends without wire fraying'
+    },
+    isFeatured: true,
+    isPublished: true,
+    rating: 4.9,
+    reviewsCount: 64,
+    images: [
+      { id: 'img-5', url: heroGadgetsImg, altText: 'Heavy Duty 100W Braided USB-C Cable', isPrimary: true },
+    ],
+    variants: [
+      { id: 'var-5a', name: 'Length', optionValue: '1.2 Meter (Standard Desk)', priceOverride: 6500, stock: 35, sku: 'PT-CB-005-1M' },
+      { id: 'var-5b', name: 'Length', optionValue: '2.0 Meter (Extra Long Bedside)', priceOverride: 8000, stock: 20, sku: 'PT-CB-005-2M' }
+    ],
+    createdAt: '2026-03-05T14:00:00Z',
+  },
+  {
+    id: 'prod-3in1-fast-cable',
+    name: '3-in-1 Fast Charging Nylon Cable (Lightning, Type-C, Micro)',
+    slug: '3in1-fast-charging-nylon-cable-lightning-typec-micro',
+    categoryId: 'cat-usb-cables',
+    categoryName: 'USB Cables',
+    sku: 'PT-CB-006',
+    price: 5500,
+    compareAtPrice: 7000,
+    stock: 40,
+    description: 'The ultimate all-in-one cable for car, office, and bedside. Simultaneously charge an iPhone, an Android Type-C phone, and a legacy gadget from a single USB port. Reinforced joints prevent separation.',
+    specifications: {
+      'Connectors': '1x Lightning (iOS), 1x USB-C, 1x Micro-USB',
+      'Current Output': '3.5A Smart Fast Output across all ports',
+      'Length': '1.2 Meters',
+      'Compatibility': 'Universal for all iOS and Android devices'
+    },
+    isFeatured: false,
+    isPublished: true,
+    rating: 4.8,
+    reviewsCount: 31,
+    images: [
+      { id: 'img-6', url: heroGadgetsImg, altText: '3-in-1 Fast Charging Cable', isPrimary: true },
+    ],
+    variants: [
+      { id: 'var-6a', name: 'Color', optionValue: 'Gunmetal Grey', stock: 25, sku: 'PT-CB-006-GRY' },
+      { id: 'var-6b', name: 'Color', optionValue: 'Deep Crimson Red', stock: 15, sku: 'PT-CB-006-RED' }
+    ],
+    createdAt: '2026-03-06T11:00:00Z',
+  },
+  {
+    id: 'prod-tecno-spark-20-pro',
+    name: 'Tecno Spark 20 Pro (256GB ROM / 8GB RAM + 8GB Extended)',
+    slug: 'tecno-spark-20-pro-256gb-8gb-ram',
+    categoryId: 'cat-phones',
+    categoryName: 'Phones',
+    sku: 'PT-PH-007',
+    price: 185000,
+    compareAtPrice: 205000,
+    stock: 8,
+    description: 'Brand new factory sealed Tecno Spark 20 Pro with 1-year Carlcare warranty. Boasting a razor-sharp 108MP Ultra-Sensing camera, Helio G99 gaming processor, 120Hz punch-hole screen, and 5000mAh battery with 33W flash charge.',
+    specifications: {
+      'Display': '6.78-inch FHD+ 120Hz IPS Display',
+      'Processor': 'MediaTek Helio G99 Octa-Core (6nm)',
+      'Rear Camera': '108MP Main Sensor with 3X In-Sensor Zoom',
+      'Front Camera': '32MP Glowing Selfie Camera with Dual Flash',
+      'Storage': '256GB Internal Storage + 8GB RAM (Extendable to 16GB)',
+      'Battery': '5000mAh with 33W Fast Charger Included in Box',
+      'Warranty': '13 Months Official Carlcare Nigeria Warranty'
+    },
+    isFeatured: true,
+    isPublished: true,
+    rating: 4.9,
+    reviewsCount: 17,
+    images: [
+      { id: 'img-7', url: heroGadgetsImg, altText: 'Tecno Spark 20 Pro Smartphone', isPrimary: true },
+    ],
+    variants: [
+      { id: 'var-7a', name: 'Color', optionValue: 'Moonlit Black', stock: 5, sku: 'PT-PH-007-BLK' },
+      { id: 'var-7b', name: 'Color', optionValue: 'Frosty Ivory', stock: 3, sku: 'PT-PH-007-WHT' }
+    ],
+    createdAt: '2026-03-07T08:00:00Z',
+  },
+  {
+    id: 'prod-samsung-galaxy-a15',
+    name: 'Samsung Galaxy A15 (128GB ROM / 6GB RAM, Super AMOLED)',
+    slug: 'samsung-galaxy-a15-128gb-6gb-ram',
+    categoryId: 'cat-phones',
+    categoryName: 'Phones',
+    sku: 'PT-PH-008',
+    price: 210000,
+    compareAtPrice: 230000,
+    stock: 6,
+    description: 'Original Samsung Galaxy A15 with vivid 6.5-inch Super AMOLED 90Hz display. Equipped with 50MP triple rear camera, 4 OS upgrades guaranteed by Samsung, and 25W super-fast charge capability. Sealed Nigerian retail pack.',
+    specifications: {
+      'Screen': '6.5" Super AMOLED 90Hz Vision Booster (800 nits)',
+      'Processor': 'MediaTek Helio G99 Octa-Core',
+      'Main Camera': '50MP AF + 5MP Ultra Wide + 2MP Macro',
+      'Memory': '128GB Storage, 6GB RAM, MicroSD expandable up to 1TB',
+      'Battery': '5,000mAh 2-day battery life with 25W Fast Charging',
+      'Warranty': '24 Months Official Samsung Care Nigeria Warranty'
+    },
+    isFeatured: true,
+    isPublished: true,
+    rating: 4.9,
+    reviewsCount: 25,
+    images: [
+      { id: 'img-8', url: heroGadgetsImg, altText: 'Samsung Galaxy A15 Smartphone', isPrimary: true },
+    ],
+    variants: [
+      { id: 'var-8a', name: 'Color', optionValue: 'Blue Black', stock: 4, sku: 'PT-PH-008-BLK' },
+      { id: 'var-8b', name: 'Color', optionValue: 'Light Blue', stock: 2, sku: 'PT-PH-008-BLU' }
+    ],
+    createdAt: '2026-03-08T09:30:00Z',
+  },
+  {
+    id: 'prod-9h-tempered-glass',
+    name: '9H Full Coverage HD Tempered Glass Screen Protector (2-Pack)',
+    slug: '9h-full-coverage-hd-tempered-glass-screen-protector-2pack',
+    categoryId: 'cat-cases-screen-guards',
+    categoryName: 'Cases & Screen Guards',
+    sku: 'PT-CS-009',
+    price: 4000,
+    compareAtPrice: 5500,
+    stock: 80,
+    description: 'Ultra-clear 9H hardness tempered glass with oleophobic anti-fingerprint coating and 2.5D curved edges. Defends your screen against keys, scratches, and direct face-down concrete drops. Includes full installation guide and dust wipes.',
+    specifications: {
+      'Hardness': '9H Scratch Resistance',
+      'Pack Size': '2x Tempered Glass Protectors + Alcohol Wipes',
+      'Thickness': '0.33mm Ultra-thin with touch responsiveness',
+      'Coating': 'Hydrophobic and Oleophobic anti-smudge'
+    },
+    isFeatured: false,
+    isPublished: true,
+    rating: 4.8,
+    reviewsCount: 52,
+    images: [
+      { id: 'img-9', url: heroGadgetsImg, altText: '9H Tempered Glass Screen Protector', isPrimary: true },
+    ],
+    variants: [
+      { id: 'var-9a', name: 'Model', optionValue: 'iPhone 13 / 14 / 15', stock: 30, sku: 'PT-CS-009-IPH15' },
+      { id: 'var-9b', name: 'Model', optionValue: 'iPhone 15 Pro / 16 Pro', stock: 20, sku: 'PT-CS-009-IPH16' },
+      { id: 'var-9c', name: 'Model', optionValue: 'Samsung A15 / A25', stock: 15, sku: 'PT-CS-009-SAMA' },
+      { id: 'var-9d', name: 'Model', optionValue: 'Tecno Spark 20 / Camon 30', stock: 15, sku: 'PT-CS-009-TEC' }
+    ],
+    createdAt: '2026-03-09T15:00:00Z',
+  },
+  {
+    id: 'prod-shockproof-magnetic-case',
+    name: 'Military-Grade Shockproof Magnetic Matte Phone Case',
+    slug: 'military-grade-shockproof-magnetic-matte-phone-case',
+    categoryId: 'cat-cases-screen-guards',
+    categoryName: 'Cases & Screen Guards',
+    sku: 'PT-CS-010',
+    price: 7500,
+    compareAtPrice: 9500,
+    stock: 45,
+    description: 'Precision-engineered case featuring corner air-cushions, raised camera lens lip, and a semi-translucent frosted matte back that resists grease. Built-in N52 strong magnets snap securely onto car mounts and magnetic chargers.',
+    specifications: {
+      'Drop Rating': 'MIL-STD-810G 10ft drop tested',
+      'Magnetic Ring': 'Integrated 38x N52 NdFeB strong magnets',
+      'Bezel Raised Edge': '1.5mm Screen Lip, 2.0mm Camera Island Bezel',
+      'Finish': 'Translucent Anti-Fingerprint Matte'
+    },
+    isFeatured: true,
+    isPublished: true,
+    rating: 4.9,
+    reviewsCount: 39,
+    images: [
+      { id: 'img-10', url: heroGadgetsImg, altText: 'Military Grade Magnetic Matte Case', isPrimary: true },
+    ],
+    variants: [
+      { id: 'var-10a', name: 'Model & Color', optionValue: 'iPhone 14 / 15 (Translucent Black)', stock: 20, sku: 'PT-CS-010-IPH-BLK' },
+      { id: 'var-10b', name: 'Model & Color', optionValue: 'iPhone 15 Pro Max (Deep Blue)', stock: 15, sku: 'PT-CS-010-IPH-BLU' },
+      { id: 'var-10c', name: 'Model & Color', optionValue: 'Samsung S23 / S24 (Frosted Clear)', stock: 10, sku: 'PT-CS-010-SAM-CLR' }
+    ],
+    createdAt: '2026-03-10T11:00:00Z',
+  },
+  {
+    id: 'prod-aluminum-desktop-stand',
+    name: 'Adjustable Foldable Aluminum Desktop Phone & Tablet Stand',
+    slug: 'adjustable-foldable-aluminum-desktop-phone-tablet-stand',
+    categoryId: 'cat-stands-holders',
+    categoryName: 'Stands & Holders',
+    sku: 'PT-ST-011',
+    price: 9500,
+    compareAtPrice: 12000,
+    stock: 28,
+    description: 'Heavy solid aerospace aluminum alloy with dual 270° rotating hinges. Holds phones and tablets up to 11 inches steady for video calls, YouTube, Zoom meetings, and bedside streaming. Folds completely flat for travel.',
+    specifications: {
+      'Material': 'Aerospace CNC Aluminum with silicone cushions',
+      'Weight Capacity': 'Supports devices up to 1.5kg without slipping',
+      'Cable Cutout': 'Specially designed groove for bottom charging cable',
+      'Portability': 'Collapsible pocket-sized fold (120g)'
+    },
+    isFeatured: false,
+    isPublished: true,
+    rating: 4.9,
+    reviewsCount: 22,
+    images: [
+      { id: 'img-11', url: heroGadgetsImg, altText: 'Adjustable Aluminum Phone Stand', isPrimary: true },
+    ],
+    variants: [
+      { id: 'var-11a', name: 'Finish', optionValue: 'Deep Space Gray', stock: 18, sku: 'PT-ST-011-GRY' },
+      { id: 'var-11b', name: 'Finish', optionValue: 'Anodized Silver', stock: 10, sku: 'PT-ST-011-SLV' }
+    ],
+    createdAt: '2026-03-11T13:00:00Z',
+  },
+  {
+    id: 'prod-car-airvent-mount',
+    name: '360° Rotatable Gravity Car Air Vent Phone Mount',
+    slug: '360-rotatable-gravity-car-air-vent-phone-mount',
+    categoryId: 'cat-stands-holders',
+    categoryName: 'Stands & Holders',
+    sku: 'PT-ST-012',
+    price: 8000,
+    compareAtPrice: 10500,
+    stock: 35,
+    description: 'Auto-clamping gravity mechanism: simply drop your phone in and the side arms grip instantly. Steel core air vent hook locks tightly onto Nigerian road potholes and speed bumps without rattling or shaking loose.',
+    specifications: {
+      'Mount Type': 'Twist-lock Steel Vent Hook Clamp',
+      'Clamp Mechanism': 'Automatic Gravity Triangle Locking',
+      'Rotation': '360-degree ball joint for optimal map viewing',
+      'Phone Size': 'Fits 4.7" to 7.0" devices even with thick pouches'
+    },
+    isFeatured: false,
+    isPublished: true,
+    rating: 4.8,
+    reviewsCount: 19,
+    images: [
+      { id: 'img-12', url: heroGadgetsImg, altText: 'Gravity Car Vent Phone Mount', isPrimary: true },
+    ],
+    variants: [
+      { id: 'var-12a', name: 'Color', optionValue: 'Obsidian Black', stock: 35, sku: 'PT-ST-012-BLK' }
+    ],
+    createdAt: '2026-03-12T10:00:00Z',
+  }
+];
+
+export const INITIAL_SETTINGS: StoreSettings = {
+  storeName: "Princely's Tech",
+  tagline: 'Your Trusted Online Store for Everyday Gadgets and Mobile Accessories.',
+  whatsappNumber: '2348124491537',
+  displayPhone: '08124491537',
+  supportEmail: 'Princely4u112@gmail.com',
+  deliveryTime: '5–7 days nationwide',
+  deliveryFee: 2500,
+  freeDeliveryThreshold: 60000,
+  address: 'Shop 14, Gadget Plaza, Computer Village / Nationwide Express Dispatch, Nigeria',
+};
+
+export const INITIAL_CONTENT: SiteContent = {
+  heroHeadline: 'Authentic Everyday Gadgets & Phone Accessories in Nigeria',
+  heroSubtext: 'Never worry about fake batteries or overheating chargers again. We test every power bank, charger, and cable for real durability before nationwide dispatch.',
+  whyChooseUsTitle: 'Why Smartphone Users Trust Princely\'s Tech',
+  whyChooseUsBody: 'In Nigeria, the tech accessory market is flooded with knock-offs that ruin phone batteries and stop working in 2 weeks. Princely\'s Tech was founded to eliminate that fear. Every product in our inventory is benchmarked for genuine wattage, authentic battery capacities, and physical durability.',
+  deliveryBannerText: 'Fast & Secure Nationwide Delivery Within 5–7 Days Across All 36 States',
+  footerText: 'Princely\'s Tech is Nigeria\'s premier direct-to-consumer destination for verified mobile power, fast charging, audio, and protective smartphone essentials.',
+  aboutText: 'Princely\'s Tech is a registered Nigerian retail electronics enterprise committed to bridging the gap between affordable pricing and genuine device safety. We serve students, corporate professionals, drivers, and creators with authentic accessories from trusted global manufacturers.',
+  warrantyText: 'Every electronic device and charging accessory from Princely\'s Tech comes with a 6-month store warranty covering manufacturer defects. If an item fails under normal usage within the warranty window, we replace it promptly.',
+  returnsText: 'We maintain a 7-day inspection and return guarantee from the date of physical delivery. Items must be in original condition with intact packaging for exchange or refund.'
+};

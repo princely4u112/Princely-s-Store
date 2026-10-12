@@ -1,0 +1,244 @@
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { AdminUser } from '../types';
+import { supabase, isSupabaseConfigured } from '../services/supabase';
+
+interface AuthContextType {
+  admin: AdminUser | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => void;
+  lockoutRemaining: number;
+}
+
+const AUTH_STORAGE_KEY = 'princelys_tech_admin_session_v2';
+const LOCKOUT_KEY = 'princelys_tech_auth_lockout_v2';
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [admin, setAdmin] = useState<AdminUser | null>(() => {
+    try {
+      const stored = sessionStorage.getItem(AUTH_STORAGE_KEY);
+      if (!stored) return null;
+      const parsed = JSON.parse(stored);
+      // Check session expiry (2 hours)
+      if (Date.now() - parsed.timestamp > 2 * 60 * 60 * 1000) {
+        sessionStorage.removeItem(AUTH_STORAGE_KEY);
+        return null;
+      }
+      return parsed.user;
+    } catch {
+      return null;
+    }
+  });
+
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [lockoutRemaining, setLockoutRemaining] = useState<number>(0);
+
+  // Check lockout on mount and interval
+  useEffect(() => {
+    const checkLockout = () => {
+      try {
+        const raw = sessionStorage.getItem(LOCKOUT_KEY);
+        if (raw) {
+          const { lockedUntil } = JSON.parse(raw);
+          const remaining = Math.max(0, Math.ceil((lockedUntil - Date.now()) / 1000));
+          setLockoutRemaining(remaining);
+          if (remaining === 0) {
+            sessionStorage.removeItem(LOCKOUT_KEY);
+          }
+        } else {
+          setLockoutRemaining(0);
+        }
+      } catch {
+        setLockoutRemaining(0);
+      }
+    };
+
+    checkLockout();
+    const interval = setInterval(checkLockout, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Check Supabase session on mount if configured
+  useEffect(() => {
+    const initAuth = async () => {
+      if (isSupabaseConfigured && supabase) {
+        try {
+          const { data } = await supabase.auth.getSession();
+          if (data?.session?.user) {
+            const user = data.session.user;
+            // Check admin role
+            const { data: adminRecord } = await supabase
+              .from('admin_users')
+              .select('*')
+              .eq('id', user.id)
+              .maybeSingle();
+
+            if (adminRecord) {
+              const adminUser: AdminUser = {
+                id: adminRecord.id,
+                email: adminRecord.email,
+                fullName: adminRecord.full_name,
+                role: adminRecord.role,
+              };
+              setAdmin(adminUser);
+              sessionStorage.setItem(
+                AUTH_STORAGE_KEY,
+                JSON.stringify({ user: adminUser, timestamp: Date.now() })
+              );
+            }
+          }
+        } catch (e) {
+          console.warn('Supabase auth session check failed:', e);
+        }
+      }
+      setIsLoading(false);
+    };
+
+    initAuth();
+  }, []);
+
+  const recordFailedAttempt = () => {
+    try {
+      const raw = sessionStorage.getItem('admin_failed_attempts') || '{"count": 0, "firstAttempt": 0}';
+      const parsed = JSON.parse(raw);
+      const now = Date.now();
+      const count = parsed.count + 1;
+
+      if (count >= MAX_ATTEMPTS) {
+        const lockedUntil = now + LOCKOUT_DURATION_MS;
+        sessionStorage.setItem(LOCKOUT_KEY, JSON.stringify({ lockedUntil }));
+        sessionStorage.removeItem('admin_failed_attempts');
+        setLockoutRemaining(LOCKOUT_DURATION_MS / 1000);
+      } else {
+        sessionStorage.setItem('admin_failed_attempts', JSON.stringify({ count, firstAttempt: parsed.firstAttempt || now }));
+      }
+    } catch {}
+  };
+
+  const clearFailedAttempts = () => {
+    sessionStorage.removeItem('admin_failed_attempts');
+    sessionStorage.removeItem(LOCKOUT_KEY);
+    setLockoutRemaining(0);
+  };
+
+  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    if (lockoutRemaining > 0) {
+      return {
+        success: false,
+        error: `Too many failed attempts. Login locked for ${lockoutRemaining} seconds.`,
+      };
+    }
+
+    if (!email || !password) {
+      return { success: false, error: 'Email and password are required.' };
+    }
+
+    // If Supabase is connected, authenticate via Supabase Auth
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+
+        if (error || !data.user) {
+          recordFailedAttempt();
+          return { success: false, error: error?.message || 'Invalid admin credentials.' };
+        }
+
+        // Verify admin_users table
+        const { data: adminRecord, error: roleError } = await supabase
+          .from('admin_users')
+          .select('*')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
+        if (roleError || !adminRecord) {
+          recordFailedAttempt();
+          return { success: false, error: 'Access denied: User is not registered in admin_users.' };
+        }
+
+        const adminUser: AdminUser = {
+          id: adminRecord.id,
+          email: adminRecord.email,
+          fullName: adminRecord.full_name,
+          role: adminRecord.role,
+        };
+
+        setAdmin(adminUser);
+        clearFailedAttempts();
+        sessionStorage.setItem(
+          AUTH_STORAGE_KEY,
+          JSON.stringify({ user: adminUser, timestamp: Date.now() })
+        );
+        return { success: true };
+      } catch (err: any) {
+        recordFailedAttempt();
+        return { success: false, error: err.message || 'Authentication failed.' };
+      }
+    }
+
+    // In local sandbox environment (before Supabase credentials are wired)
+    // Accept the store owner's official email or standard admin credentials
+    const cleanEmail = email.trim().toLowerCase();
+    const isOwnerEmail = cleanEmail === 'princely4u112@gmail.com' || cleanEmail === 'admin@princelystech.ng';
+
+    if (isOwnerEmail && password.length >= 6) {
+      const adminUser: AdminUser = {
+        id: 'admin-local-1',
+        email: cleanEmail,
+        fullName: "Princely's Tech Admin",
+        role: 'super_admin',
+      };
+      setAdmin(adminUser);
+      clearFailedAttempts();
+      sessionStorage.setItem(
+        AUTH_STORAGE_KEY,
+        JSON.stringify({ user: adminUser, timestamp: Date.now() })
+      );
+      return { success: true };
+    } else {
+      recordFailedAttempt();
+      return {
+        success: false,
+        error: 'Invalid credentials. Enter registered administrator email and secure password.',
+      };
+    }
+  };
+
+  const logout = () => {
+    if (isSupabaseConfigured && supabase) {
+      supabase.auth.signOut().catch(console.warn);
+    }
+    setAdmin(null);
+    sessionStorage.removeItem(AUTH_STORAGE_KEY);
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        admin,
+        isAuthenticated: Boolean(admin),
+        isLoading,
+        login,
+        logout,
+        lockoutRemaining,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}

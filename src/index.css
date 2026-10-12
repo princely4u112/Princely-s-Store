@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-heading: "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  --color-brand: #1E2A44;
+  --color-brand-light: #2B3B5F;
+  --color-brand-dark: #111A2C;
+  --color-surface: #FFFFFF;
+  --color-canvas: #F8FAFC;
+  --color-muted: #64748B;
+  --color-border-subtle: #E2E8F0;
+  --color-cta: #E8553A;
+  --color-cta-hover: #D14529;
+  --color-success: #16A34A;
+  --color-danger: #DC2626;
+}
+
+h1, h2, h3, h4, .font-heading {
+  font-family: var(--font-heading);
+}
+
+/* Custom smooth scrolling */
+html {
+  scroll-behavior: smooth;
+  font-family: var(--font-sans);
+}
+
+/* Dark mode transition smoothing */
+html.dark {
+  color-scheme: dark;
+}
+
+/* Smooth button & interactive transitions */
+button, a {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  transition-duration: 200ms;
+}
+
+button:active, a[role="button"]:active {
+  transform: scale(0.97);
+}
+
+/* Smooth Page Transitions */
+@keyframes pageFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-enter {
+  animation: pageFadeIn 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Scroll Slide-Up & Slide-Down Reveal System */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1), transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.scroll-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Continuous Floating Bob Hover Animation for WhatsApp */
+@keyframes floatBob {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.animate-floating-hover {
+  animation: floatBob 3.2s ease-in-out infinite;
+}
+
+/* Soft pulsating aura ring */
+@keyframes softPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 14px rgba(37, 211, 102, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 211, 102, 0);
+  }
+}
+
+.pulse-aura {
+  animation: softPulse 2.4s infinite;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

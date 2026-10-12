@@ -1,0 +1,6 @@
+{
+  "name": "Princely's Tech",
+  "description": "Your Trusted Online Store for Everyday Gadgets and Mobile Accessories in Nigeria. Power banks, fast chargers, earbuds, cables, phone accessories with nationwide 5-7 day delivery.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
