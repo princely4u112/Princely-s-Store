@@ -71,19 +71,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const { data } = await supabase.auth.getSession();
           if (data?.session?.user) {
             const user = data.session.user;
-            // Check admin role
-            const { data: adminRecord } = await supabase
-              .from('admin_users')
-              .select('*')
-              .eq('id', user.id)
-              .maybeSingle();
+            const normalizedEmail = (user.email || '').trim().toLowerCase();
+            const isOwner = normalizedEmail === 'princely4u112@gmail.com' || normalizedEmail === 'admin@princelystech.ng';
 
-            if (adminRecord) {
+            let adminRecord: any = null;
+            try {
+              // Try by id first
+              const { data: byId } = await supabase
+                .from('admin_users')
+                .select('*')
+                .eq('id', user.id)
+                .maybeSingle();
+
+              if (byId) {
+                adminRecord = byId;
+              } else {
+                // Try by email
+                const { data: byEmail } = await supabase
+                  .from('admin_users')
+                  .select('*')
+                  .ilike('email', normalizedEmail)
+                  .maybeSingle();
+                adminRecord = byEmail;
+              }
+            } catch (e) {
+              console.warn('Supabase admin check error:', e);
+            }
+
+            if (adminRecord || isOwner) {
               const adminUser: AdminUser = {
-                id: adminRecord.id,
-                email: adminRecord.email,
-                fullName: adminRecord.full_name,
-                role: adminRecord.role,
+                id: adminRecord?.id || user.id,
+                email: adminRecord?.email || user.email || normalizedEmail,
+                fullName: adminRecord?.full_name || user.user_metadata?.full_name || "Princely's Tech Admin",
+                role: (adminRecord?.role as any) || 'super_admin',
               };
               setAdmin(adminUser);
               sessionStorage.setItem(
@@ -138,11 +158,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: 'Email and password are required.' };
     }
 
+    const cleanEmail = email.trim().toLowerCase();
+    const isOwnerEmail = cleanEmail === 'princely4u112@gmail.com' || cleanEmail === 'admin@princelystech.ng';
+
     // If Supabase is connected, authenticate via Supabase Auth
     if (isSupabaseConfigured && supabase) {
       try {
         const { data, error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
+          email: cleanEmail,
           password,
         });
 
@@ -151,23 +174,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { success: false, error: error?.message || 'Invalid admin credentials.' };
         }
 
-        // Verify admin_users table
-        const { data: adminRecord, error: roleError } = await supabase
-          .from('admin_users')
-          .select('*')
-          .eq('id', data.user.id)
-          .maybeSingle();
+        // Check admin_users table (by id first, then by email)
+        let adminRecord: any = null;
+        try {
+          const { data: byId } = await supabase
+            .from('admin_users')
+            .select('*')
+            .eq('id', data.user.id)
+            .maybeSingle();
 
-        if (roleError || !adminRecord) {
+          if (byId) {
+            adminRecord = byId;
+          } else {
+            const { data: byEmail } = await supabase
+              .from('admin_users')
+              .select('*')
+              .ilike('email', cleanEmail)
+              .maybeSingle();
+            adminRecord = byEmail;
+          }
+        } catch (tableErr) {
+          console.warn('Error checking admin_users table:', tableErr);
+        }
+
+        // If not found in admin_users table yet, attempt self-healing upsert for the owner
+        if (!adminRecord && isOwnerEmail) {
+          try {
+            const { data: upserted } = await supabase
+              .from('admin_users')
+              .upsert({
+                id: data.user.id,
+                email: cleanEmail,
+                full_name: data.user.user_metadata?.full_name || "Princely's Tech Owner",
+                role: 'super_admin',
+              }, { onConflict: 'id' })
+              .select()
+              .maybeSingle();
+
+            if (upserted) {
+              adminRecord = upserted;
+            }
+          } catch (upsertErr) {
+            console.warn('Self-heal admin_users upsert skipped:', upsertErr);
+          }
+        }
+
+        // If still not in admin_users and NOT the designated owner email, deny access
+        if (!adminRecord && !isOwnerEmail) {
           recordFailedAttempt();
-          return { success: false, error: 'Access denied: User is not registered in admin_users.' };
+          return {
+            success: false,
+            error: `Access denied: Account (${cleanEmail}) authenticated, but is not registered in the admin_users table. Run the SQL registration script in Supabase.`,
+          };
         }
 
         const adminUser: AdminUser = {
-          id: adminRecord.id,
-          email: adminRecord.email,
-          fullName: adminRecord.full_name,
-          role: adminRecord.role,
+          id: adminRecord?.id || data.user.id,
+          email: adminRecord?.email || cleanEmail,
+          fullName: adminRecord?.full_name || data.user.user_metadata?.full_name || "Princely's Tech Admin",
+          role: (adminRecord?.role as any) || 'super_admin',
         };
 
         setAdmin(adminUser);
@@ -185,9 +250,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // In local sandbox environment (before Supabase credentials are wired)
     // Accept the store owner's official email or standard admin credentials
-    const cleanEmail = email.trim().toLowerCase();
-    const isOwnerEmail = cleanEmail === 'princely4u112@gmail.com' || cleanEmail === 'admin@princelystech.ng';
-
     if (isOwnerEmail && password.length >= 6) {
       const adminUser: AdminUser = {
         id: 'admin-local-1',

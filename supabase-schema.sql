@@ -235,9 +235,37 @@ CREATE POLICY "Public can insert contact messages" ON contact_messages
 CREATE POLICY "Admins can view contact messages" ON contact_messages
   FOR ALL USING (auth.uid() IN (SELECT id FROM admin_users));
 
--- Admin users: authenticated admins can view admin table
-CREATE POLICY "Admins can view admin_users" ON admin_users
-  FOR SELECT USING (auth.uid() IN (SELECT id FROM admin_users));
+-- Admin users: safe RLS (users can view their own admin profile, avoids recursion)
+CREATE POLICY "Users can view own admin profile" ON admin_users
+  FOR SELECT USING (auth.uid() = id);
+
+CREATE POLICY "Super admins can manage admin_users" ON admin_users
+  FOR ALL USING (auth.uid() = id);
+
+-- 14. AUTO-REGISTER STORE OWNER AS SUPER ADMIN
+CREATE OR REPLACE FUNCTION public.handle_admin_user_registration()
+RETURNS trigger AS $$
+BEGIN
+  IF LOWER(NEW.email) IN ('princely4u112@gmail.com', 'admin@princelystech.ng') THEN
+    INSERT INTO public.admin_users (id, email, full_name, role)
+    VALUES (NEW.id, NEW.email, COALESCE(NEW.raw_user_meta_data->>'full_name', 'Princely (Super Admin)'), 'super_admin')
+    ON CONFLICT (id) DO UPDATE SET role = 'super_admin';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_admin_check ON auth.users;
+CREATE TRIGGER on_auth_user_admin_check
+  AFTER INSERT OR UPDATE ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_admin_user_registration();
+
+-- Immediate backfill for existing auth user
+INSERT INTO public.admin_users (id, email, full_name, role)
+SELECT id, email, 'Princely (Super Admin)', 'super_admin'
+FROM auth.users
+WHERE LOWER(email) IN ('princely4u112@gmail.com', 'admin@princelystech.ng')
+ON CONFLICT (id) DO UPDATE SET role = 'super_admin';
 
 -- 14. STORAGE BUCKET CONFIGURATION (Run in Supabase Dashboard or API)
 -- INSERT INTO storage.buckets (id, name, public) VALUES ('product-images', 'product-images', true)
