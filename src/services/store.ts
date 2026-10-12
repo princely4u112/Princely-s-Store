@@ -292,13 +292,62 @@ export async function updateOrderStatus(orderIdOrRef: string, status: OrderStatu
 
 // SETTINGS
 export async function getStoreSettings(): Promise<StoreSettings> {
-  return getLocalItem<StoreSettings>(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
+  const local = getLocalItem<StoreSettings>(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase.from('store_settings').select('key, value');
+      if (!error && data && data.length > 0) {
+        const map: Record<string, string> = {};
+        data.forEach((row: any) => {
+          map[row.key] = row.value;
+        });
+        const merged: StoreSettings = {
+          ...local,
+          storeName: map['store_name'] || local.storeName,
+          tagline: map['tagline'] || local.tagline,
+          whatsappNumber: map['whatsapp_number'] || local.whatsappNumber,
+          displayPhone: map['display_phone'] || local.displayPhone,
+          supportEmail: map['support_email'] || local.supportEmail,
+          deliveryTime: map['delivery_time'] || local.deliveryTime,
+          deliveryFee: map['delivery_fee'] !== undefined ? Number(map['delivery_fee']) : local.deliveryFee,
+          freeDeliveryThreshold: map['free_delivery_threshold'] !== undefined ? Number(map['free_delivery_threshold']) : local.freeDeliveryThreshold,
+          address: map['address'] || local.address,
+        };
+        setLocalItem(STORAGE_KEYS.SETTINGS, merged);
+        return merged;
+      }
+    } catch (err) {
+      console.warn('Supabase store_settings fetch fallback to local:', err);
+    }
+  }
+  return local;
 }
 
 export async function saveStoreSettings(settings: Partial<StoreSettings>): Promise<StoreSettings> {
   const current = getLocalItem<StoreSettings>(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
   const updated = { ...current, ...settings };
   setLocalItem(STORAGE_KEYS.SETTINGS, updated);
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const rows = [
+        { key: 'store_name', value: String(updated.storeName) },
+        { key: 'tagline', value: String(updated.tagline) },
+        { key: 'whatsapp_number', value: String(updated.whatsappNumber) },
+        { key: 'display_phone', value: String(updated.displayPhone) },
+        { key: 'support_email', value: String(updated.supportEmail) },
+        { key: 'delivery_time', value: String(updated.deliveryTime) },
+        { key: 'delivery_fee', value: String(updated.deliveryFee) },
+        { key: 'free_delivery_threshold', value: String(updated.freeDeliveryThreshold) },
+        { key: 'address', value: String(updated.address) },
+      ];
+      await supabase.from('store_settings').upsert(rows, { onConflict: 'key' });
+    } catch (err) {
+      console.warn('Supabase store_settings upsert error:', err);
+    }
+  }
+
+  notifyListeners();
   return updated;
 }
 

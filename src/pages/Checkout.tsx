@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ShieldCheck, Truck, Lock, ArrowLeft, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Truck, Lock, ArrowLeft, AlertCircle, MessageCircle, CheckCircle2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { NIGERIAN_STATES } from '../data/initialData';
 import { formatNaira, validateNigerianPhone } from '../utils/formatters';
@@ -8,7 +8,7 @@ import { saveOrder } from '../services/store';
 
 export const Checkout: React.FC = () => {
   const navigate = useNavigate();
-  const { items, subtotal, deliveryFee, total, clearCart } = useCart();
+  const { items, subtotal, deliveryFee, deliveryTime, total, clearCart } = useCart();
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -23,6 +23,7 @@ export const Checkout: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [lastOrderRef, setLastOrderRef] = useState<string | null>(null);
 
   if (items.length === 0) {
     return (
@@ -80,9 +81,30 @@ export const Checkout: React.FC = () => {
     setIsSubmitting(true);
     setSubmitError(null);
 
+    // Generate unique human-friendly order reference
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const orderRef = `PT-${dateStr}-${rand}`;
+    setLastOrderRef(orderRef);
+
     try {
-      // Step 1: Send client payload containing only product IDs, variant IDs, quantities and details
-      const payload = {
+      // Step 1: Prepare comprehensive order items snapshot
+      const orderItems = items.map((it) => ({
+        id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        productId: it.productId,
+        variantId: it.variantId,
+        productName: it.product.name,
+        variantName: it.variant ? `${it.variant.name}: ${it.variant.optionValue}` : undefined,
+        unitPrice: it.unitPrice,
+        quantity: it.quantity,
+        totalPrice: it.unitPrice * it.quantity,
+        imageUrl: it.product.images?.[0]?.url || '',
+      }));
+
+      // Step 2: Save the local order immediately so it is never lost
+      const localOrder = {
+        id: `ord-${Date.now()}`,
+        reference: orderRef,
         customerName: formData.fullName.trim(),
         customerEmail: formData.email.trim(),
         customerPhone: formData.phone.trim(),
@@ -90,49 +112,99 @@ export const Checkout: React.FC = () => {
         deliveryCity: formData.city.trim(),
         deliveryState: formData.state.trim(),
         orderNotes: formData.notes.trim(),
-        items: items.map((it) => ({
+        items: orderItems,
+        subtotal,
+        deliveryFee,
+        total,
+        currency: 'NGN' as const,
+        status: 'pending_payment' as const,
+        paymentChannel: 'paystack' as const,
+        createdAt: new Date().toISOString(),
+      };
+
+      await saveOrder(localOrder);
+
+      // Step 3: Send client payload to payment gateway initialize endpoint
+      const payload = {
+        customerName: localOrder.customerName,
+        customerEmail: localOrder.customerEmail,
+        customerPhone: localOrder.customerPhone,
+        deliveryAddress: localOrder.deliveryAddress,
+        deliveryCity: localOrder.deliveryCity,
+        deliveryState: localOrder.deliveryState,
+        orderNotes: localOrder.orderNotes,
+        reference: orderRef,
+        items: orderItems.map((it) => ({
           productId: it.productId,
           variantId: it.variantId,
+          productName: it.productName,
+          variantName: it.variantName,
+          unitPrice: it.unitPrice,
           quantity: it.quantity,
         })),
       };
 
-      const res = await fetch('/api/paystack/initialize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      let res: Response | null = null;
+      let data: any = null;
 
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to initialize payment gateway.');
+      try {
+        res = await fetch('/api/paystack/initialize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        data = await res.json().catch(() => null);
+      } catch (fetchErr: any) {
+        console.warn('Network call to payment initialize failed:', fetchErr);
       }
 
-      // Sync order with local persistent database
-      if (data.order) {
-        await saveOrder(data.order);
-      }
+      // Check success across server.ts and Vercel serverless formats
+      const isSuccess = Boolean(res?.ok && data && (data.success === true || data.status === true));
+      const authUrl = data?.authorizationUrl || data?.data?.authorization_url;
+      const finalRef = data?.reference || data?.data?.reference || orderRef;
 
-      // Clear the local cart now that the order is initiated
-      clearCart();
-
-      // Step 2: Redirect to Paystack or test gateway authorization URL
-      if (data.authorizationUrl) {
-        if (data.authorizationUrl.startsWith('http')) {
-          window.location.href = data.authorizationUrl;
-        } else {
-          // Internal router path (test mode)
-          navigate(data.authorizationUrl);
+      if (isSuccess && authUrl) {
+        // Sync enriched order from server if available
+        if (data.order) {
+          await saveOrder(data.order);
         }
-      } else {
-        navigate(`/order-success/${data.reference}`);
+
+        // Clear cart now that payment is in motion
+        clearCart();
+
+        if (authUrl.startsWith('http')) {
+          window.location.href = authUrl;
+        } else {
+          navigate(authUrl);
+        }
+        return;
       }
+
+      // If gateway returned an error message (e.g. invalid keys, currency not supported)
+      const errorMsg =
+        data?.error ||
+        data?.message ||
+        (res && !res.ok ? `Gateway error (HTTP ${res.status})` : 'Unable to connect to Paystack payment gateway.');
+
+      throw new Error(errorMsg);
     } catch (err: any) {
       console.error('Checkout error:', err);
-      setSubmitError(err.message || 'An error occurred during checkout. Please try again.');
+      setSubmitError(err.message || 'Payment initialization could not be completed.');
       setIsSubmitting(false);
     }
+  };
+
+  const handleSimulatedOrderFallback = async () => {
+    if (!lastOrderRef) return;
+    clearCart();
+    navigate(`/order-success/${lastOrderRef}?simulated=true`);
+  };
+
+  const handleWhatsAppOrderFallback = () => {
+    const whatsappNum = '2348124491537';
+    const itemsList = items.map((it) => `• ${it.quantity}x ${it.product.name} (${formatNaira(it.unitPrice * it.quantity)})`).join('\n');
+    const msg = `*NEW ORDER SUBMISSION* - Princely's Tech\nRef: ${lastOrderRef || 'DIRECT'}\n\n*Customer Details:*\nName: ${formData.fullName}\nPhone: ${formData.phone}\nEmail: ${formData.email}\nAddress: ${formData.address}, ${formData.city}, ${formData.state}\n\n*Order Items:*\n${itemsList}\n\nSubtotal: ${formatNaira(subtotal)}\nDelivery: ${deliveryFee === 0 ? 'FREE' : formatNaira(deliveryFee)}\n*Total Due: ${formatNaira(total)}*`;
+    window.open(`https://wa.me/${whatsappNum}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   return (
@@ -160,9 +232,33 @@ export const Checkout: React.FC = () => {
           </div>
 
           {submitError && (
-            <div className="p-3.5 bg-red-50 border border-red-200 text-[#DC2626] text-xs rounded-lg flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{submitError}</span>
+            <div className="p-4 bg-amber-50/80 border border-amber-200 text-[#1E2A44] text-xs rounded-xl space-y-3">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-amber-900">Payment Gateway Response</p>
+                  <p className="text-amber-800 text-[11px] leading-relaxed">{submitError}</p>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-amber-200/60 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleSimulatedOrderFallback}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1E2A44] hover:bg-[#2A3B5F] text-white text-[11px] font-semibold rounded-md transition-colors"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Complete in Test Mode (Instant Receipt)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleWhatsAppOrderFallback}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold rounded-md transition-colors"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>Order via WhatsApp (08124491537)</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -349,7 +445,7 @@ export const Checkout: React.FC = () => {
           <div className="pt-4 border-t border-[#E2E8F0] space-y-2.5 text-xs text-[#64748B]">
             <div className="flex items-center gap-2">
               <Truck className="w-4 h-4 text-[#1E2A44] shrink-0" />
-              <span>Estimated Delivery: <strong>5–7 days nationwide</strong></span>
+              <span>Estimated Delivery: <strong>{deliveryTime || '5–7 days nationwide'}</strong></span>
             </div>
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-[#1E2A44] shrink-0" />

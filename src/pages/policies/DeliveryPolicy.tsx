@@ -1,7 +1,32 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Truck, Clock, ShieldCheck, MapPin } from 'lucide-react';
+import { StoreSettings } from '../../types';
+import { getStoreSettings, subscribeToStore } from '../../services/store';
+import { INITIAL_SETTINGS } from '../../data/initialData';
+import { formatNaira } from '../../utils/formatters';
 
 export const DeliveryPolicy: React.FC = () => {
+  const [settings, setSettings] = useState<StoreSettings>(INITIAL_SETTINGS);
+
+  useEffect(() => {
+    let mounted = true;
+    getStoreSettings().then((s) => {
+      if (mounted && s) setSettings(s);
+    });
+    const unsub = subscribeToStore(() => {
+      getStoreSettings().then((s) => {
+        if (mounted && s) setSettings(s);
+      });
+    });
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, []);
+
+  const fee = Number(settings.deliveryFee) || 0;
+  const threshold = Number(settings.freeDeliveryThreshold) || 0;
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-16 space-y-10">
       
@@ -20,11 +45,11 @@ export const DeliveryPolicy: React.FC = () => {
         <div className="space-y-3">
           <h2 className="font-heading text-lg font-bold text-[#1E2A44] flex items-center gap-2">
             <Clock className="w-5 h-5 text-[#E8553A]" />
-            <span>1. Estimated Delivery Timelines (5–7 Days Nationwide)</span>
+            <span>1. Estimated Delivery Timelines ({settings.deliveryTime || '5–7 Days Nationwide'})</span>
           </h2>
           <p>
             At Princely's Tech, all orders are processed, bench-tested, and dispatched within <strong>24 hours</strong> of payment verification. 
-            Standard transit time across Nigeria is <strong>5 to 7 business days</strong> nationwide.
+            Standard transit time across Nigeria is <strong>{settings.deliveryTime || '5 to 7 business days'}</strong> nationwide.
           </p>
           <ul className="list-disc list-inside space-y-1.5 text-xs text-[#64748B] pl-2">
             <li><strong>Lagos & South-West Metropolis:</strong> 2 to 4 business days</li>
@@ -39,12 +64,23 @@ export const DeliveryPolicy: React.FC = () => {
             <Truck className="w-5 h-5 text-[#E8553A]" />
             <span>2. Nationwide Shipping Rates</span>
           </h2>
-          <p>
-            We maintain a flat-rate nationwide shipping fee of <strong>₦2,500</strong> for all deliveries across all 36 states and the Federal Capital Territory.
-          </p>
-          <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-xs font-semibold">
-            Free Nationwide Shipping: All orders with a subtotal of ₦60,000 or above automatically qualify for 100% free delivery nationwide.
-          </div>
+          {fee === 0 ? (
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-xs font-semibold flex items-center gap-2">
+              <Truck className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>100% Free Nationwide Shipping: We currently deliver all orders nationwide completely FREE across all 36 states and the FCT!</span>
+            </div>
+          ) : (
+            <>
+              <p>
+                We maintain a flat-rate nationwide shipping fee of <strong>{formatNaira(fee)}</strong> for all deliveries across all 36 states and the Federal Capital Territory.
+              </p>
+              {threshold > 0 && (
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-xs font-semibold">
+                  Free Nationwide Shipping: All orders with a subtotal of {formatNaira(threshold)} or above automatically qualify for 100% free delivery nationwide.
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         <div className="space-y-3 pt-6 border-t border-[#E2E8F0]">

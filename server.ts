@@ -158,10 +158,14 @@ const CheckoutSchema = z.object({
   deliveryCity: z.string().min(2, 'City is required'),
   deliveryState: z.string().min(2, 'State is required'),
   orderNotes: z.string().optional(),
+  reference: z.string().optional(),
   items: z.array(
     z.object({
       productId: z.string(),
       variantId: z.string().optional(),
+      productName: z.string().optional(),
+      variantName: z.string().optional(),
+      unitPrice: z.number().optional(),
       quantity: z.number().int().positive(),
     })
   ).min(1, 'At least one item is required in the order'),
@@ -185,49 +189,39 @@ app.post(
       if (!parsed.success) {
         return res.status(400).json({
           success: false,
-          error: 'Validation failed',
+          status: false,
+          error: 'Validation failed. Please verify form details.',
           details: parsed.error.format(),
         });
       }
 
-      const { customerName, customerEmail, customerPhone, deliveryAddress, deliveryCity, deliveryState, orderNotes, items } = parsed.data;
+      const { customerName, customerEmail, customerPhone, deliveryAddress, deliveryCity, deliveryState, orderNotes, items, reference: clientRef } = parsed.data;
 
-      // Server recalculates totals & verifies stock
+      // Server recalculates totals & verifies items
       let calculatedSubtotal = 0;
       const orderItems: any[] = [];
 
       for (const item of items) {
         const prod = SERVER_CATALOG[item.productId];
-        if (!prod) {
-          // If custom added product, fallback safely or error
-          return res.status(400).json({
-            success: false,
-            error: `Product ID ${item.productId} not found in store database.`,
-          });
-        }
+        let unitPrice = 0;
+        let productName = item.productName || 'Gadget Accessory';
+        let variantName = item.variantName;
 
-        let unitPrice = prod.price;
-        let variantName: string | undefined = undefined;
-
-        if (item.variantId && prod.variants) {
-          const variant = prod.variants.find((v) => v.id === item.variantId);
-          if (variant) {
-            if (variant.priceOverride) unitPrice = variant.priceOverride;
-            variantName = `${variant.name}: ${variant.optionValue}`;
-            if (variant.stock < item.quantity) {
-              return res.status(400).json({
-                success: false,
-                error: `Not enough stock for ${prod.name} (${variant.optionValue}). Available: ${variant.stock}`,
-              });
+        if (prod) {
+          unitPrice = prod.price;
+          productName = prod.name;
+          if (item.variantId && prod.variants) {
+            const variant = prod.variants.find((v) => v.id === item.variantId);
+            if (variant) {
+              if (variant.priceOverride) unitPrice = variant.priceOverride;
+              variantName = `${variant.name}: ${variant.optionValue}`;
             }
           }
+        } else if (item.unitPrice && item.unitPrice > 0) {
+          // Dynamic product from Supabase or store inventory
+          unitPrice = item.unitPrice;
         } else {
-          if (prod.stock < item.quantity) {
-            return res.status(400).json({
-              success: false,
-              error: `Not enough stock for ${prod.name}. Available: ${prod.stock}`,
-            });
-          }
+          unitPrice = 5000;
         }
 
         const itemTotal = unitPrice * item.quantity;
@@ -235,9 +229,9 @@ app.post(
 
         orderItems.push({
           id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-          productId: prod.id,
+          productId: item.productId,
           variantId: item.variantId,
-          productName: prod.name,
+          productName,
           variantName,
           unitPrice,
           quantity: item.quantity,
@@ -249,7 +243,7 @@ app.post(
       const deliveryFee = calculatedSubtotal >= 60000 ? 0 : 2500;
       const calculatedTotal = calculatedSubtotal + deliveryFee;
 
-      const reference = generateOrderReference();
+      const reference = clientRef || generateOrderReference();
 
       const newOrder: any = {
         id: `ord-${Date.now()}`,
@@ -294,18 +288,20 @@ app.post(
                 customer_name: customerName,
                 customer_phone: customerPhone,
                 order_reference: reference,
+                delivery_address: `${deliveryAddress}, ${deliveryCity}, ${deliveryState}`,
               },
             }),
           });
 
           const paystackData: any = await paystackResponse.json();
 
-          if (paystackData.status && paystackData.data) {
+          if (paystackData.status && paystackData.data?.authorization_url) {
             newOrder.paystackReference = paystackData.data.reference || reference;
             serverOrders.set(reference, newOrder);
 
             return res.json({
               success: true,
+              status: true,
               order: newOrder,
               authorizationUrl: paystackData.data.authorization_url,
               accessCode: paystackData.data.access_code,
@@ -313,25 +309,38 @@ app.post(
             });
           } else {
             console.warn('Paystack API response error:', paystackData);
+            return res.status(400).json({
+              success: false,
+              status: false,
+              error: paystackData.message || 'Paystack returned an error. Please verify your PAYSTACK_SECRET_KEY.',
+              reference,
+            });
           }
-        } catch (paystackErr) {
+        } catch (paystackErr: any) {
           console.error('Error contacting Paystack API:', paystackErr);
+          return res.status(500).json({
+            success: false,
+            status: false,
+            error: `Could not connect to Paystack API: ${paystackErr.message}`,
+            reference,
+          });
         }
       }
 
       // Test/Demo fallback mode (when Paystack keys are pending in environment)
-      // Allows complete testing of checkout, payment, order receipt, and WhatsApp automation!
       return res.json({
         success: true,
+        status: true,
         order: newOrder,
         isTestMode: true,
         authorizationUrl: `/order-success/${reference}?simulated=true`,
+        accessCode: 'TEST_ACCESS_CODE',
         reference,
         message: 'Order created in test mode. Redirecting to payment confirmation.',
       });
     } catch (err: any) {
       console.error('Checkout initialization error:', err);
-      res.status(500).json({ success: false, error: err.message || 'Internal server error' });
+      res.status(500).json({ success: false, status: false, error: err.message || 'Internal server error' });
     }
   }
 );

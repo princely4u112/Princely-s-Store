@@ -11,8 +11,10 @@ export const Cart: React.FC = () => {
     itemCount,
     subtotal,
     deliveryFee,
+    baseDeliveryFee,
     freeDeliveryThreshold,
     freeDeliveryRemaining,
+    isAlwaysFreeShipping,
     total,
     updateQuantity,
     removeItem,
@@ -75,24 +77,46 @@ export const Cart: React.FC = () => {
           
           {/* Free Shipping Progress Callout */}
           <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 text-xs space-y-2">
-            {freeDeliveryRemaining > 0 ? (
-              <p className="text-[#1E2A44]">
-                Add <span className="font-bold text-[#E8553A]">{formatNaira(freeDeliveryRemaining)}</span> more to qualify for <strong>FREE nationwide shipping</strong>!
-              </p>
+            {isAlwaysFreeShipping ? (
+              <>
+                <p className="text-emerald-700 font-semibold flex items-center gap-1.5">
+                  <Truck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Special Promotion: <strong>100% FREE nationwide delivery</strong> on all orders!</span>
+                </p>
+                <div className="w-full bg-emerald-100 h-2 rounded-full overflow-hidden">
+                  <div className="bg-emerald-500 h-full w-full" />
+                </div>
+              </>
+            ) : freeDeliveryThreshold > 0 && freeDeliveryRemaining > 0 ? (
+              <>
+                <p className="text-[#1E2A44]">
+                  Add <span className="font-bold text-[#E8553A]">{formatNaira(freeDeliveryRemaining)}</span> more to qualify for <strong>FREE nationwide shipping</strong>!
+                </p>
+                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                  <div
+                    className="bg-[#E8553A] h-full transition-all duration-300"
+                    style={{
+                      width: `${Math.min(100, Math.round((subtotal / freeDeliveryThreshold) * 100))}%`,
+                    }}
+                  />
+                </div>
+              </>
+            ) : freeDeliveryThreshold > 0 && freeDeliveryRemaining === 0 ? (
+              <>
+                <p className="text-emerald-700 font-semibold flex items-center gap-1.5">
+                  <Truck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Congratulations! Your order qualifies for <strong>FREE nationwide delivery</strong>.</span>
+                </p>
+                <div className="w-full bg-emerald-100 h-2 rounded-full overflow-hidden">
+                  <div className="bg-emerald-500 h-full w-full" />
+                </div>
+              </>
             ) : (
-              <p className="text-emerald-700 font-semibold flex items-center gap-1.5">
-                <Truck className="w-4 h-4 text-emerald-600" />
-                <span>Congratulations! Your order qualifies for FREE nationwide delivery.</span>
+              <p className="text-[#1E2A44] flex items-center gap-1.5 font-medium">
+                <Truck className="w-4 h-4 text-[#E8553A] shrink-0" />
+                <span>Nationwide Express Dispatch: <strong>{formatNaira(baseDeliveryFee)}</strong> across all 36 states.</span>
               </p>
             )}
-            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-              <div
-                className="bg-[#E8553A] h-full transition-all duration-300"
-                style={{
-                  width: `${Math.min(100, Math.round((subtotal / freeDeliveryThreshold) * 100))}%`,
-                }}
-              />
-            </div>
           </div>
 
           {/* Cart Table / Cards */}

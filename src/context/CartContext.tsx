@@ -1,14 +1,18 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { CartItem, Product, ProductVariant } from '../types';
-import { getProductById } from '../services/store';
+import { CartItem, Product, ProductVariant, StoreSettings } from '../types';
+import { INITIAL_SETTINGS } from '../data/initialData';
+import { getProductById, getStoreSettings, subscribeToStore } from '../services/store';
 
 interface CartContextType {
   items: CartItem[];
   itemCount: number;
   subtotal: number;
   deliveryFee: number;
+  baseDeliveryFee: number;
   freeDeliveryThreshold: number;
   freeDeliveryRemaining: number;
+  isAlwaysFreeShipping: boolean;
+  deliveryTime: string;
   total: number;
   addItem: (product: Product, variant?: ProductVariant, quantity?: number) => void;
   removeItem: (productId: string, variantId?: string) => void;
@@ -20,8 +24,6 @@ interface CartContextType {
 }
 
 const CART_STORAGE_KEY = 'princelys_tech_cart_v2';
-const FLAT_DELIVERY_FEE = 2500;
-const FREE_DELIVERY_THRESHOLD = 60000;
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
@@ -36,6 +38,24 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   });
 
   const [notification, setNotification] = useState<string | null>(null);
+  const [settings, setSettings] = useState<StoreSettings>(INITIAL_SETTINGS);
+
+  // Sync settings and listen for updates
+  useEffect(() => {
+    let isMounted = true;
+    getStoreSettings().then((s) => {
+      if (isMounted && s) setSettings(s);
+    });
+    const unsubscribe = subscribeToStore(() => {
+      getStoreSettings().then((s) => {
+        if (isMounted && s) setSettings(s);
+      });
+    });
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
 
   // Persist items
   useEffect(() => {
@@ -151,11 +171,24 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const dismissNotification = () => setNotification(null);
 
-  // Computations
+  // Computations based on live store settings
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
-  const deliveryFee = subtotal === 0 || subtotal >= FREE_DELIVERY_THRESHOLD ? 0 : FLAT_DELIVERY_FEE;
-  const freeDeliveryRemaining = Math.max(0, FREE_DELIVERY_THRESHOLD - subtotal);
+
+  const baseDeliveryFee = Math.max(0, Number(settings?.deliveryFee) || 0);
+  const freeDeliveryThreshold = Math.max(0, Number(settings?.freeDeliveryThreshold) || 0);
+  const isAlwaysFreeShipping = baseDeliveryFee === 0;
+
+  // Free delivery applies if:
+  // 1. Store flat fee is 0 (free shipping on all orders)
+  // 2. Or subtotal meets/exceeds the free delivery threshold (when threshold > 0)
+  const qualifiesForFreeDelivery = isAlwaysFreeShipping || (freeDeliveryThreshold > 0 && subtotal >= freeDeliveryThreshold);
+  const deliveryFee = subtotal === 0 || qualifiesForFreeDelivery ? 0 : baseDeliveryFee;
+
+  const freeDeliveryRemaining = (isAlwaysFreeShipping || freeDeliveryThreshold <= 0)
+    ? 0
+    : Math.max(0, freeDeliveryThreshold - subtotal);
+
   const total = subtotal + deliveryFee;
 
   return (
@@ -165,8 +198,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         itemCount,
         subtotal,
         deliveryFee,
-        freeDeliveryThreshold: FREE_DELIVERY_THRESHOLD,
+        baseDeliveryFee,
+        freeDeliveryThreshold,
         freeDeliveryRemaining,
+        isAlwaysFreeShipping,
+        deliveryTime: settings?.deliveryTime || '5–7 days nationwide',
         total,
         addItem,
         removeItem,
