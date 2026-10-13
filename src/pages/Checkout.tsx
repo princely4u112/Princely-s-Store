@@ -134,6 +134,9 @@ export const Checkout: React.FC = () => {
         deliveryState: localOrder.deliveryState,
         orderNotes: localOrder.orderNotes,
         reference: orderRef,
+        deliveryFee: localOrder.deliveryFee,
+        subtotal: localOrder.subtotal,
+        total: localOrder.total,
         items: orderItems.map((it) => ({
           productId: it.productId,
           variantId: it.variantId,

@@ -13,7 +13,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+const args = process.argv.slice(2);
+const portArgIndex = args.indexOf('--port');
+const cliPort = portArgIndex !== -1 && args[portArgIndex + 1] ? Number(args[portArgIndex + 1]) : null;
+const isDev = process.env.NODE_ENV !== 'production';
+const PORT = cliPort || (isDev ? 3000 : (Number(process.env.PORT) || 3000));
 
 // Security Middleware & Parsers
 app.use(express.json({ limit: '10mb' }));
@@ -159,6 +163,9 @@ const CheckoutSchema = z.object({
   deliveryState: z.string().min(2, 'State is required'),
   orderNotes: z.string().optional(),
   reference: z.string().optional(),
+  deliveryFee: z.number().min(0).optional(),
+  subtotal: z.number().min(0).optional(),
+  total: z.number().min(0).optional(),
   items: z.array(
     z.object({
       productId: z.string(),
@@ -195,7 +202,18 @@ app.post(
         });
       }
 
-      const { customerName, customerEmail, customerPhone, deliveryAddress, deliveryCity, deliveryState, orderNotes, items, reference: clientRef } = parsed.data;
+      const {
+        customerName,
+        customerEmail,
+        customerPhone,
+        deliveryAddress,
+        deliveryCity,
+        deliveryState,
+        orderNotes,
+        items,
+        reference: clientRef,
+        deliveryFee: clientDeliveryFee,
+      } = parsed.data;
 
       // Server recalculates totals & verifies items
       let calculatedSubtotal = 0;
@@ -239,8 +257,14 @@ app.post(
         });
       }
 
-      // Delivery Fee: flat 2500, free over 60000
-      const deliveryFee = calculatedSubtotal >= 60000 ? 0 : 2500;
+      // Delivery Fee:
+      // Respect client deliveryFee (e.g. 0 for nationwide free shipping or custom rate from admin settings)
+      let deliveryFee = 0;
+      if (clientDeliveryFee !== undefined && clientDeliveryFee !== null) {
+        deliveryFee = Math.max(0, Number(clientDeliveryFee));
+      } else {
+        deliveryFee = calculatedSubtotal >= 60000 ? 0 : 2500;
+      }
       const calculatedTotal = calculatedSubtotal + deliveryFee;
 
       const reference = clientRef || generateOrderReference();
@@ -523,8 +547,16 @@ async function setupVite() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`[Princely's Tech] Full-stack Server listening on http://0.0.0.0:${PORT}`);
+  });
+
+  server.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`[Princely's Tech] Port ${PORT} already active.`);
+    } else {
+      console.error('[Princely\'s Tech] Server listen error:', err);
+    }
   });
 }
 

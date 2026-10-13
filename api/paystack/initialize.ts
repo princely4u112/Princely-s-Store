@@ -26,6 +26,7 @@ export default async function handler(req: any, res: any) {
       orderNotes,
       items,
       reference: clientRef,
+      deliveryFee: clientDeliveryFee,
     } = req.body || {};
 
     if (!customerEmail || !items || !Array.isArray(items) || items.length === 0) {
@@ -63,8 +64,14 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // Free delivery threshold: ₦60,000
-    const deliveryFee = subtotal >= 60000 ? 0 : 2500;
+    // Delivery Fee:
+    // Respect client deliveryFee (e.g. 0 for nationwide free shipping or custom rate from admin settings)
+    let deliveryFee = 0;
+    if (clientDeliveryFee !== undefined && clientDeliveryFee !== null) {
+      deliveryFee = Math.max(0, Number(clientDeliveryFee));
+    } else {
+      deliveryFee = subtotal >= 60000 ? 0 : 2500;
+    }
     const total = subtotal + deliveryFee;
 
     const newOrder = {
