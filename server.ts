@@ -50,108 +50,26 @@ function rateLimiter(limit: number, windowMs: number) {
   };
 }
 
-// In-memory persistent order & product store on server
-interface ServerProduct {
-  id: string;
-  name: string;
-  price: number;
-  stock: number;
-  variants?: { id: string; name: string; optionValue: string; priceOverride?: number; stock: number }[];
-}
-
-// Server catalog mirror for price verification
-const SERVER_CATALOG: Record<string, ServerProduct> = {
-  'prod-anker-powercore-20k': {
-    id: 'prod-anker-powercore-20k',
-    name: 'Anker PowerCore 20,000mAh PD Fast Charge Power Bank',
-    price: 28500,
-    stock: 24,
-    variants: [
-      { id: 'var-1a', name: 'Color', optionValue: 'Matte Obsidian Black', stock: 16 },
-      { id: 'var-1b', name: 'Color', optionValue: 'Glacier White', stock: 8 }
-    ]
-  },
-  'prod-gan-65w-wall-charger': {
-    id: 'prod-gan-65w-wall-charger',
-    name: '65W GaN Dual USB-C Fast Wall Charger Adapter',
-    price: 18500,
-    stock: 32,
-    variants: [
-      { id: 'var-2a', name: 'Color', optionValue: 'Matte Midnight Black', stock: 20 },
-      { id: 'var-2b', name: 'Color', optionValue: 'Pure Frost White', stock: 12 }
-    ]
-  },
-  'prod-sonic-pro-wireless-earbuds': {
-    id: 'prod-sonic-pro-wireless-earbuds',
-    name: 'Sonic Pro Active Noise-Cancelling Wireless Earbuds',
-    price: 24000,
-    stock: 19,
-    variants: [
-      { id: 'var-3a', name: 'Color', optionValue: 'Space Graphite', stock: 11 },
-      { id: 'var-3b', name: 'Color', optionValue: 'Pearl White', stock: 8 }
-    ]
-  },
-  'prod-oraimo-traveler-20k': {
-    id: 'prod-oraimo-traveler-20k',
-    name: 'Oraimo Traveler 20,000mAh Ultra-Slim Power Bank',
-    price: 22000,
-    stock: 15,
-  },
-  'prod-braided-100w-usbc-cable': {
-    id: 'prod-braided-100w-usbc-cable',
-    name: 'Heavy-Duty 100W Braided USB-C to USB-C Fast Cable',
-    price: 6500,
-    stock: 55,
-    variants: [
-      { id: 'var-5a', name: 'Length', optionValue: '1.2 Meter', priceOverride: 6500, stock: 35 },
-      { id: 'var-5b', name: 'Length', optionValue: '2.0 Meter', priceOverride: 8000, stock: 20 }
-    ]
-  },
-  'prod-3in1-fast-cable': {
-    id: 'prod-3in1-fast-cable',
-    name: '3-in-1 Fast Charging Nylon Cable (Lightning, Type-C, Micro)',
-    price: 5500,
-    stock: 40,
-  },
-  'prod-tecno-spark-20-pro': {
-    id: 'prod-tecno-spark-20-pro',
-    name: 'Tecno Spark 20 Pro (256GB ROM / 8GB RAM + 8GB Extended)',
-    price: 185000,
-    stock: 8,
-  },
-  'prod-samsung-galaxy-a15': {
-    id: 'prod-samsung-galaxy-a15',
-    name: 'Samsung Galaxy A15 (128GB ROM / 6GB RAM, Super AMOLED)',
-    price: 210000,
-    stock: 6,
-  },
-  'prod-9h-tempered-glass': {
-    id: 'prod-9h-tempered-glass',
-    name: '9H Full Coverage HD Tempered Glass Screen Protector (2-Pack)',
-    price: 4000,
-    stock: 80,
-  },
-  'prod-shockproof-magnetic-case': {
-    id: 'prod-shockproof-magnetic-case',
-    name: 'Military-Grade Shockproof Magnetic Matte Phone Case',
-    price: 7500,
-    stock: 45,
-  },
-  'prod-aluminum-desktop-stand': {
-    id: 'prod-aluminum-desktop-stand',
-    name: 'Adjustable Foldable Aluminum Desktop Phone & Tablet Stand',
-    price: 9500,
-    stock: 28,
-  },
-  'prod-car-airvent-mount': {
-    id: 'prod-car-airvent-mount',
-    name: '360° Rotatable Gravity Car Air Vent Phone Mount',
-    price: 8000,
-    stock: 35,
-  }
-};
-
-const serverOrders = new Map<string, any>();
+import {
+  getAllProducts,
+  getProductByIdOrSlug,
+  saveProduct,
+  deleteProduct,
+  getAllCategories,
+  saveCategory,
+  deleteCategory,
+  getAllOrders,
+  getOrderByReference,
+  saveOrder as saveOrderToDb,
+  updateOrderStatus,
+  getSettings,
+  saveSettings,
+  getContent,
+  saveContent,
+  getAllContacts,
+  saveContact,
+  markContactRead,
+} from './server/db.ts';
 
 // Validation schema for checkout submission
 const CheckoutSchema = z.object({
@@ -185,6 +103,143 @@ function generateOrderReference(): string {
   const randomChars = Math.random().toString(36).substring(2, 6).toUpperCase();
   return `PT-${dateStr}-${randomChars}`;
 }
+
+// -------------------------------------------------------------
+// REST API: PRODUCTS
+// -------------------------------------------------------------
+app.get('/api/products', (req: Request, res: Response) => {
+  const includeUnpublished = req.query.all === 'true';
+  const products = getAllProducts(includeUnpublished);
+  res.json({ success: true, products });
+});
+
+app.get('/api/products/:idOrSlug', (req: Request, res: Response) => {
+  const product = getProductByIdOrSlug(req.params.idOrSlug);
+  if (!product) {
+    return res.status(404).json({ success: false, error: 'Product not found' });
+  }
+  res.json({ success: true, product });
+});
+
+app.post('/api/products', (req: Request, res: Response) => {
+  try {
+    const saved = saveProduct(req.body);
+    res.json({ success: true, product: saved });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message || 'Failed to save product' });
+  }
+});
+
+app.delete('/api/products/:id', (req: Request, res: Response) => {
+  const ok = deleteProduct(req.params.id);
+  res.json({ success: ok });
+});
+
+// -------------------------------------------------------------
+// REST API: CATEGORIES
+// -------------------------------------------------------------
+app.get('/api/categories', (req: Request, res: Response) => {
+  const categories = getAllCategories();
+  res.json({ success: true, categories });
+});
+
+app.post('/api/categories', (req: Request, res: Response) => {
+  try {
+    const saved = saveCategory(req.body);
+    res.json({ success: true, category: saved });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message || 'Failed to save category' });
+  }
+});
+
+app.delete('/api/categories/:id', (req: Request, res: Response) => {
+  const ok = deleteCategory(req.params.id);
+  res.json({ success: ok });
+});
+
+// -------------------------------------------------------------
+// REST API: ORDERS
+// -------------------------------------------------------------
+app.get('/api/orders', (req: Request, res: Response) => {
+  const orders = getAllOrders();
+  res.json({ success: true, orders });
+});
+
+app.get('/api/orders/:reference', (req: Request, res: Response) => {
+  const order = getOrderByReference(req.params.reference);
+  if (!order) {
+    return res.status(404).json({ success: false, error: 'Order not found' });
+  }
+  res.json({ success: true, order });
+});
+
+app.post('/api/orders', (req: Request, res: Response) => {
+  try {
+    const saved = saveOrderToDb(req.body);
+    res.json({ success: true, order: saved });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message || 'Failed to save order' });
+  }
+});
+
+app.patch('/api/orders/:idOrRef/status', (req: Request, res: Response) => {
+  const { status, internalNotes } = req.body;
+  if (!status) {
+    return res.status(400).json({ success: false, error: 'Status is required' });
+  }
+  const updated = updateOrderStatus(req.params.idOrRef, status, internalNotes);
+  if (!updated) {
+    return res.status(404).json({ success: false, error: 'Order not found' });
+  }
+  res.json({ success: true, order: updated });
+});
+
+// -------------------------------------------------------------
+// REST API: STORE SETTINGS
+// -------------------------------------------------------------
+app.get('/api/settings', (req: Request, res: Response) => {
+  const settings = getSettings();
+  res.json({ success: true, settings });
+});
+
+app.put('/api/settings', (req: Request, res: Response) => {
+  try {
+    const saved = saveSettings(req.body);
+    res.json({ success: true, settings: saved });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message || 'Failed to save settings' });
+  }
+});
+
+// -------------------------------------------------------------
+// REST API: SITE CONTENT
+// -------------------------------------------------------------
+app.get('/api/content', (req: Request, res: Response) => {
+  const content = getContent();
+  res.json({ success: true, content });
+});
+
+app.put('/api/content', (req: Request, res: Response) => {
+  try {
+    const saved = saveContent(req.body);
+    res.json({ success: true, content: saved });
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message || 'Failed to save content' });
+  }
+});
+
+// -------------------------------------------------------------
+// REST API: CONTACT MESSAGES
+// -------------------------------------------------------------
+app.get('/api/contacts', (req: Request, res: Response) => {
+  const contacts = getAllContacts();
+  res.json({ success: true, contacts });
+});
+
+app.patch('/api/contacts/:id/read', (req: Request, res: Response) => {
+  const ok = markContactRead(req.params.id);
+  res.json({ success: ok });
+});
 
 // 1. API: INITIALIZE PAYSTACK TRANSACTION
 app.post(
@@ -220,7 +275,7 @@ app.post(
       const orderItems: any[] = [];
 
       for (const item of items) {
-        const prod = SERVER_CATALOG[item.productId];
+        const prod = getProductByIdOrSlug(item.productId);
         let unitPrice = 0;
         let productName = item.productName || 'Gadget Accessory';
         let variantName = item.variantName;
@@ -236,7 +291,6 @@ app.post(
             }
           }
         } else if (item.unitPrice && item.unitPrice > 0) {
-          // Dynamic product from Supabase or store inventory
           unitPrice = item.unitPrice;
         } else {
           unitPrice = 5000;
@@ -259,11 +313,12 @@ app.post(
 
       // Delivery Fee:
       // Respect client deliveryFee (e.g. 0 for nationwide free shipping or custom rate from admin settings)
-      let deliveryFee = 0;
+      const currentSettings = getSettings();
+      let deliveryFee = currentSettings.deliveryFee !== undefined ? currentSettings.deliveryFee : 2500;
       if (clientDeliveryFee !== undefined && clientDeliveryFee !== null) {
         deliveryFee = Math.max(0, Number(clientDeliveryFee));
-      } else {
-        deliveryFee = calculatedSubtotal >= 60000 ? 0 : 2500;
+      } else if (currentSettings.freeDeliveryThreshold && calculatedSubtotal >= currentSettings.freeDeliveryThreshold) {
+        deliveryFee = 0;
       }
       const calculatedTotal = calculatedSubtotal + deliveryFee;
 
@@ -289,7 +344,7 @@ app.post(
         createdAt: new Date().toISOString(),
       };
 
-      serverOrders.set(reference, newOrder);
+      saveOrderToDb(newOrder);
 
       const paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
       const siteUrl = process.env.APP_URL || process.env.VITE_SITE_URL || `http://localhost:${PORT}`;
@@ -321,7 +376,7 @@ app.post(
 
           if (paystackData.status && paystackData.data?.authorization_url) {
             newOrder.paystackReference = paystackData.data.reference || reference;
-            serverOrders.set(reference, newOrder);
+            saveOrderToDb(newOrder);
 
             return res.json({
               success: true,
@@ -376,7 +431,7 @@ app.get(
   async (req: Request, res: Response) => {
     try {
       const { reference } = req.params;
-      const order = serverOrders.get(reference);
+      const order = getOrderByReference(reference);
 
       if (!order) {
         return res.status(404).json({ success: false, error: 'Order reference not found' });
@@ -400,20 +455,12 @@ app.get(
         if (verifyData.status && verifyData.data?.status === 'success') {
           const paidAmount = verifyData.data.amount / 100;
           if (paidAmount >= order.total) {
-            order.status = 'paid';
-            order.paidAt = new Date().toISOString();
-            order.paystackReference = verifyData.data.reference;
-
-            // Deduct stock
-            for (const item of order.items) {
-              const catalogItem = SERVER_CATALOG[item.productId];
-              if (catalogItem) {
-                catalogItem.stock = Math.max(0, catalogItem.stock - item.quantity);
-              }
+            const updated = updateOrderStatus(reference, 'paid');
+            if (updated) {
+              updated.paystackReference = verifyData.data.reference;
+              saveOrderToDb(updated);
             }
-
-            serverOrders.set(reference, order);
-            return res.json({ success: true, order });
+            return res.json({ success: true, order: updated || order });
           } else {
             return res.status(400).json({
               success: false,
@@ -429,11 +476,8 @@ app.get(
       }
 
       // Test/Demo verification
-      order.status = 'paid';
-      order.paidAt = new Date().toISOString();
-      serverOrders.set(reference, order);
-
-      return res.json({ success: true, order, isTestMode: true });
+      const updated = updateOrderStatus(reference, 'paid');
+      return res.json({ success: true, order: updated || order, isTestMode: true });
     } catch (err: any) {
       console.error('Verify error:', err);
       res.status(500).json({ success: false, error: err.message || 'Internal verification error' });
@@ -467,14 +511,7 @@ app.post('/api/paystack/webhook', (req: Request, res: Response) => {
     if (event.event === 'charge.success') {
       const data = event.data;
       const reference = data.reference;
-      const order = serverOrders.get(reference);
-
-      if (order && order.status !== 'paid') {
-        order.status = 'paid';
-        order.paidAt = new Date().toISOString();
-        order.paystackReference = data.reference;
-        serverOrders.set(reference, order);
-      }
+      updateOrderStatus(reference, 'paid');
     }
 
     res.sendStatus(200);
@@ -484,12 +521,12 @@ app.post('/api/paystack/webhook', (req: Request, res: Response) => {
   }
 });
 
-// 4. API: GET ORDER BY REFERENCE
+// 4. API: GET ORDER BY REFERENCE (With Phone Verification)
 app.get('/api/orders/:reference', (req: Request, res: Response) => {
   const { reference } = req.params;
   const phone = req.query.phone as string | undefined;
 
-  const order = serverOrders.get(reference);
+  const order = getOrderByReference(reference);
   if (!order) {
     return res.status(404).json({ success: false, error: 'Order not found' });
   }
@@ -525,6 +562,14 @@ app.post('/api/contact', rateLimiter(10, 60000), (req: Request, res: Response) =
   if (parsed.data._hp) {
     return res.json({ success: true, message: 'Message received' });
   }
+
+  saveContact({
+    fullName: parsed.data.name,
+    email: parsed.data.email,
+    phone: parsed.data.phone || '',
+    subject: parsed.data.subject,
+    message: parsed.data.message,
+  });
 
   res.json({
     success: true,

@@ -56,57 +56,17 @@ function setLocalItem<T>(key: string, value: T): void {
 
 // PRODUCTS
 export async function getProducts(includeUnpublished = false): Promise<Product[]> {
-  if (isSupabaseConfigured && supabase) {
-    try {
-      let query = supabase.from('products').select(`
-        *,
-        category:categories(name),
-        images:product_images(*),
-        variants:product_variants(*)
-      `);
-      if (!includeUnpublished) {
-        query = query.eq('is_published', true);
+  try {
+    const res = await fetch(`/api/products?all=${includeUnpublished}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.products)) {
+        setLocalItem(STORAGE_KEYS.PRODUCTS, data.products);
+        return includeUnpublished ? data.products : data.products.filter((p: Product) => p.isPublished);
       }
-      const { data, error } = await query.order('created_at', { ascending: false });
-      if (!error && data && data.length > 0) {
-        return data.map((item: any) => ({
-          id: item.id,
-          name: item.name,
-          slug: item.slug,
-          categoryId: item.category_id,
-          categoryName: item.category?.name || 'Accessories',
-          sku: item.sku || '',
-          price: Number(item.price),
-          compareAtPrice: item.compare_at_price ? Number(item.compare_at_price) : undefined,
-          stock: item.stock,
-          description: item.description,
-          specifications: item.specifications || {},
-          isFeatured: item.is_featured,
-          isPublished: item.is_published,
-          rating: Number(item.rating || 4.9),
-          reviewsCount: item.reviews_count || 12,
-          images: item.images?.map((img: any) => ({
-            id: img.id,
-            url: img.url,
-            altText: img.alt_text,
-            isPrimary: img.is_primary,
-          })) || [],
-          variants: item.variants?.map((v: any) => ({
-            id: v.id,
-            productId: v.product_id,
-            name: v.name,
-            optionValue: v.option_value,
-            priceOverride: v.price_override ? Number(v.price_override) : undefined,
-            stock: v.stock,
-            sku: v.sku,
-          })) || [],
-          createdAt: item.created_at,
-          updatedAt: item.updated_at,
-        }));
-      }
-    } catch (e) {
-      console.warn('Supabase getProducts failed, using local store:', e);
     }
+  } catch (err) {
+    console.warn('Failed to fetch products from server, falling back to local cache:', err);
   }
 
   // Fallback to local storage or initial seed
@@ -115,22 +75,66 @@ export async function getProducts(includeUnpublished = false): Promise<Product[]
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
+  try {
+    const res = await fetch(`/api/products/${slug}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.product) return data.product;
+    }
+  } catch (err) {
+    // Ignore and fallback
+  }
   const products = await getProducts(true);
   return products.find((p) => p.slug === slug) || null;
 }
 
 export async function getProductById(id: string): Promise<Product | null> {
+  try {
+    const res = await fetch(`/api/products/${id}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.product) return data.product;
+    }
+  } catch (err) {
+    // Ignore and fallback
+  }
   const products = await getProducts(true);
   return products.find((p) => p.id === id) || null;
 }
 
 export async function saveProduct(product: Partial<Product> & { name: string; price: number; categoryId: string }): Promise<Product> {
+  try {
+    const res = await fetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(product),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.product) {
+        // Update local cache
+        const currentProducts = getLocalItem<Product[]>(STORAGE_KEYS.PRODUCTS, INITIAL_PRODUCTS);
+        const idx = currentProducts.findIndex((p) => p.id === data.product.id);
+        if (idx !== -1) {
+          currentProducts[idx] = data.product;
+        } else {
+          currentProducts.unshift(data.product);
+        }
+        setLocalItem(STORAGE_KEYS.PRODUCTS, currentProducts);
+        notifyListeners();
+        return data.product;
+      }
+    }
+  } catch (err) {
+    console.warn('API saveProduct failed, updating local storage:', err);
+  }
+
+  // Fallback local update
   const currentProducts = getLocalItem<Product[]>(STORAGE_KEYS.PRODUCTS, INITIAL_PRODUCTS);
   const categories = await getCategories();
   const cat = categories.find((c) => c.id === product.categoryId);
 
   if (product.id) {
-    // Update existing
     const index = currentProducts.findIndex((p) => p.id === product.id);
     if (index !== -1) {
       const updated: Product = {
@@ -145,7 +149,6 @@ export async function saveProduct(product: Partial<Product> & { name: string; pr
     }
   }
 
-  // Create new
   const slug = product.slug || product.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') + '-' + Math.random().toString(36).substring(2, 6);
   const newProduct: Product = {
     id: product.id || 'prod-' + Date.now(),
@@ -177,6 +180,12 @@ export async function saveProduct(product: Partial<Product> & { name: string; pr
 }
 
 export async function deleteProduct(id: string): Promise<boolean> {
+  try {
+    await fetch(`/api/products/${id}`, { method: 'DELETE' });
+  } catch (err) {
+    console.warn('API deleteProduct failed:', err);
+  }
+
   const current = getLocalItem<Product[]>(STORAGE_KEYS.PRODUCTS, INITIAL_PRODUCTS);
   const filtered = current.filter((p) => p.id !== id);
   setLocalItem(STORAGE_KEYS.PRODUCTS, filtered);
@@ -188,8 +197,7 @@ export async function updateProductStock(id: string, newStock: number): Promise<
   const target = current.find((p) => p.id === id);
   if (target) {
     target.stock = Math.max(0, newStock);
-    target.updatedAt = new Date().toISOString();
-    setLocalItem(STORAGE_KEYS.PRODUCTS, [...current]);
+    await saveProduct(target);
     return true;
   }
   return false;
@@ -197,11 +205,46 @@ export async function updateProductStock(id: string, newStock: number): Promise<
 
 // CATEGORIES
 export async function getCategories(): Promise<Category[]> {
+  try {
+    const res = await fetch('/api/categories');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.categories)) {
+        setLocalItem(STORAGE_KEYS.CATEGORIES, data.categories);
+        return data.categories.sort((a: Category, b: Category) => a.displayOrder - b.displayOrder);
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to fetch categories from server:', err);
+  }
+
   const local = getLocalItem<Category[]>(STORAGE_KEYS.CATEGORIES, INITIAL_CATEGORIES);
   return local.sort((a, b) => a.displayOrder - b.displayOrder);
 }
 
 export async function saveCategory(category: Partial<Category> & { name: string }): Promise<Category> {
+  try {
+    const res = await fetch('/api/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(category),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.category) {
+        const current = getLocalItem<Category[]>(STORAGE_KEYS.CATEGORIES, INITIAL_CATEGORIES);
+        const idx = current.findIndex((c) => c.id === data.category.id);
+        if (idx !== -1) current[idx] = data.category;
+        else current.push(data.category);
+        setLocalItem(STORAGE_KEYS.CATEGORIES, current);
+        notifyListeners();
+        return data.category;
+      }
+    }
+  } catch (err) {
+    console.warn('API saveCategory failed:', err);
+  }
+
   const current = getLocalItem<Category[]>(STORAGE_KEYS.CATEGORIES, INITIAL_CATEGORIES);
   const slug = category.slug || category.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 
@@ -227,6 +270,12 @@ export async function saveCategory(category: Partial<Category> & { name: string 
 }
 
 export async function deleteCategory(id: string): Promise<boolean> {
+  try {
+    await fetch(`/api/categories/${id}`, { method: 'DELETE' });
+  } catch (err) {
+    console.warn('API deleteCategory failed:', err);
+  }
+
   const current = getLocalItem<Category[]>(STORAGE_KEYS.CATEGORIES, INITIAL_CATEGORIES);
   setLocalItem(STORAGE_KEYS.CATEGORIES, current.filter((c) => c.id !== id));
   return true;
@@ -234,11 +283,35 @@ export async function deleteCategory(id: string): Promise<boolean> {
 
 // ORDERS
 export async function getOrders(): Promise<Order[]> {
+  try {
+    const res = await fetch('/api/orders');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.orders)) {
+        setLocalItem(STORAGE_KEYS.ORDERS, data.orders);
+        return data.orders.sort((a: Order, b: Order) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to fetch orders from server:', err);
+  }
+
   const orders = getLocalItem<Order[]>(STORAGE_KEYS.ORDERS, []);
   return orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
 export async function getOrderByRef(ref: string, phoneVerification?: string): Promise<Order | null> {
+  try {
+    const url = `/api/orders/${ref}${phoneVerification ? '?phone=' + encodeURIComponent(phoneVerification) : ''}`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.order) return data.order;
+    }
+  } catch (err) {
+    console.warn('Failed to fetch order by ref from server:', err);
+  }
+
   const orders = await getOrders();
   const order = orders.find((o) => o.reference.toLowerCase() === ref.toLowerCase());
   if (!order) return null;
@@ -247,13 +320,35 @@ export async function getOrderByRef(ref: string, phoneVerification?: string): Pr
     const cleanLookup = phoneVerification.replace(/\D/g, '').slice(-10);
     const cleanCustomer = order.customerPhone.replace(/\D/g, '').slice(-10);
     if (cleanLookup !== cleanCustomer) {
-      return null; // Phone check failed for customer verification
+      return null;
     }
   }
   return order;
 }
 
 export async function saveOrder(order: Order): Promise<Order> {
+  try {
+    const res = await fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(order),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.order) {
+        const orders = getLocalItem<Order[]>(STORAGE_KEYS.ORDERS, []);
+        const idx = orders.findIndex((o) => o.reference === data.order.reference);
+        if (idx !== -1) orders[idx] = data.order;
+        else orders.unshift(data.order);
+        setLocalItem(STORAGE_KEYS.ORDERS, orders);
+        notifyListeners();
+        return data.order;
+      }
+    }
+  } catch (err) {
+    console.warn('API saveOrder failed:', err);
+  }
+
   const orders = getLocalItem<Order[]>(STORAGE_KEYS.ORDERS, []);
   const existingIdx = orders.findIndex((o) => o.reference === order.reference);
   if (existingIdx !== -1) {
@@ -266,6 +361,27 @@ export async function saveOrder(order: Order): Promise<Order> {
 }
 
 export async function updateOrderStatus(orderIdOrRef: string, status: OrderStatus, internalNotes?: string): Promise<Order | null> {
+  try {
+    const res = await fetch(`/api/orders/${orderIdOrRef}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, internalNotes }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.order) {
+        const orders = getLocalItem<Order[]>(STORAGE_KEYS.ORDERS, []);
+        const idx = orders.findIndex((o) => o.id === data.order.id || o.reference === data.order.reference);
+        if (idx !== -1) orders[idx] = data.order;
+        setLocalItem(STORAGE_KEYS.ORDERS, orders);
+        notifyListeners();
+        return data.order;
+      }
+    }
+  } catch (err) {
+    console.warn('API updateOrderStatus failed:', err);
+  }
+
   const orders = getLocalItem<Order[]>(STORAGE_KEYS.ORDERS, []);
   const order = orders.find((o) => o.id === orderIdOrRef || o.reference === orderIdOrRef);
   if (!order) return null;
@@ -279,84 +395,90 @@ export async function updateOrderStatus(orderIdOrRef: string, status: OrderStatu
   }
   order.updatedAt = new Date().toISOString();
 
-  // Deduct inventory when order is marked paid
-  if (status === 'paid') {
-    for (const item of order.items) {
-      await updateProductStock(item.productId, (await getProductById(item.productId))?.stock ?? 10 - item.quantity);
-    }
-  }
-
   setLocalItem(STORAGE_KEYS.ORDERS, [...orders]);
   return order;
 }
 
 // SETTINGS
 export async function getStoreSettings(): Promise<StoreSettings> {
-  const local = getLocalItem<StoreSettings>(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { data, error } = await supabase.from('store_settings').select('key, value');
-      if (!error && data && data.length > 0) {
-        const map: Record<string, string> = {};
-        data.forEach((row: any) => {
-          map[row.key] = row.value;
-        });
-        const merged: StoreSettings = {
-          ...local,
-          storeName: map['store_name'] || local.storeName,
-          tagline: map['tagline'] || local.tagline,
-          whatsappNumber: map['whatsapp_number'] || local.whatsappNumber,
-          displayPhone: map['display_phone'] || local.displayPhone,
-          supportEmail: map['support_email'] || local.supportEmail,
-          deliveryTime: map['delivery_time'] || local.deliveryTime,
-          deliveryFee: map['delivery_fee'] !== undefined ? Number(map['delivery_fee']) : local.deliveryFee,
-          freeDeliveryThreshold: map['free_delivery_threshold'] !== undefined ? Number(map['free_delivery_threshold']) : local.freeDeliveryThreshold,
-          address: map['address'] || local.address,
-        };
-        setLocalItem(STORAGE_KEYS.SETTINGS, merged);
-        return merged;
+  try {
+    const res = await fetch('/api/settings');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.settings) {
+        setLocalItem(STORAGE_KEYS.SETTINGS, data.settings);
+        return data.settings;
       }
-    } catch (err) {
-      console.warn('Supabase store_settings fetch fallback to local:', err);
     }
+  } catch (err) {
+    console.warn('Failed to fetch settings from server:', err);
   }
-  return local;
+
+  return getLocalItem<StoreSettings>(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
 }
 
 export async function saveStoreSettings(settings: Partial<StoreSettings>): Promise<StoreSettings> {
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.settings) {
+        setLocalItem(STORAGE_KEYS.SETTINGS, data.settings);
+        notifyListeners();
+        return data.settings;
+      }
+    }
+  } catch (err) {
+    console.warn('API saveStoreSettings failed:', err);
+  }
+
   const current = getLocalItem<StoreSettings>(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
   const updated = { ...current, ...settings };
   setLocalItem(STORAGE_KEYS.SETTINGS, updated);
-
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const rows = [
-        { key: 'store_name', value: String(updated.storeName) },
-        { key: 'tagline', value: String(updated.tagline) },
-        { key: 'whatsapp_number', value: String(updated.whatsappNumber) },
-        { key: 'display_phone', value: String(updated.displayPhone) },
-        { key: 'support_email', value: String(updated.supportEmail) },
-        { key: 'delivery_time', value: String(updated.deliveryTime) },
-        { key: 'delivery_fee', value: String(updated.deliveryFee) },
-        { key: 'free_delivery_threshold', value: String(updated.freeDeliveryThreshold) },
-        { key: 'address', value: String(updated.address) },
-      ];
-      await supabase.from('store_settings').upsert(rows, { onConflict: 'key' });
-    } catch (err) {
-      console.warn('Supabase store_settings upsert error:', err);
-    }
-  }
-
   notifyListeners();
   return updated;
 }
 
 // SITE CONTENT
 export async function getSiteContent(): Promise<SiteContent> {
+  try {
+    const res = await fetch('/api/content');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.content) {
+        setLocalItem(STORAGE_KEYS.CONTENT, data.content);
+        return data.content;
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to fetch site content from server:', err);
+  }
   return getLocalItem<SiteContent>(STORAGE_KEYS.CONTENT, INITIAL_CONTENT);
 }
 
 export async function saveSiteContent(content: Partial<SiteContent>): Promise<SiteContent> {
+  try {
+    const res = await fetch('/api/content', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(content),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.content) {
+        setLocalItem(STORAGE_KEYS.CONTENT, data.content);
+        notifyListeners();
+        return data.content;
+      }
+    }
+  } catch (err) {
+    console.warn('API saveSiteContent failed:', err);
+  }
+
   const current = getLocalItem<SiteContent>(STORAGE_KEYS.CONTENT, INITIAL_CONTENT);
   const updated = { ...current, ...content };
   setLocalItem(STORAGE_KEYS.CONTENT, updated);
@@ -365,6 +487,25 @@ export async function saveSiteContent(content: Partial<SiteContent>): Promise<Si
 
 // CONTACT MESSAGES
 export async function saveContactMessage(msg: Omit<ContactMessage, 'id' | 'isRead' | 'createdAt'>): Promise<ContactMessage> {
+  try {
+    const res = await fetch('/api/contacts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(msg),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.contact) {
+        const current = getLocalItem<ContactMessage[]>(STORAGE_KEYS.CONTACTS, []);
+        setLocalItem(STORAGE_KEYS.CONTACTS, [data.contact, ...current]);
+        notifyListeners();
+        return data.contact;
+      }
+    }
+  } catch (err) {
+    console.warn('API saveContactMessage failed:', err);
+  }
+
   const current = getLocalItem<ContactMessage[]>(STORAGE_KEYS.CONTACTS, []);
   const newMsg: ContactMessage = {
     id: 'msg-' + Date.now(),
@@ -377,10 +518,28 @@ export async function saveContactMessage(msg: Omit<ContactMessage, 'id' | 'isRea
 }
 
 export async function getContactMessages(): Promise<ContactMessage[]> {
+  try {
+    const res = await fetch('/api/contacts');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.contacts)) {
+        setLocalItem(STORAGE_KEYS.CONTACTS, data.contacts);
+        return data.contacts;
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to fetch contact messages from server:', err);
+  }
   return getLocalItem<ContactMessage[]>(STORAGE_KEYS.CONTACTS, []);
 }
 
 export async function markMessageRead(id: string): Promise<void> {
+  try {
+    await fetch(`/api/contacts/${id}/read`, { method: 'PATCH' });
+  } catch (err) {
+    console.warn('API markMessageRead failed:', err);
+  }
+
   const current = getLocalItem<ContactMessage[]>(STORAGE_KEYS.CONTACTS, []);
   const target = current.find((m) => m.id === id);
   if (target) {
